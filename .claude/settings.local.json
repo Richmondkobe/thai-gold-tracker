@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(brew --version)",
+      "Bash(curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh)",
+      "Bash(bash)",
+      "Bash(rm -rf /private/tmp/claude-501/-Users-richmonddonkor-Thai-Gold-Tracker/31e9c1bc-e681-48f4-a18a-b426d3028f4d/scratchpad/thai-gold-tracker/.git)",
+      "Bash(rsync -a --exclude node_modules /private/tmp/claude-501/-Users-richmonddonkor-Thai-Gold-Tracker/31e9c1bc-e681-48f4-a18a-b426d3028f4d/scratchpad/thai-gold-tracker/ '/Users/richmonddonkor/Thai Gold Tracker/')",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}
