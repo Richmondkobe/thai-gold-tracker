@@ -1,1 +1,33 @@
 @AGENTS.md
+
+# Thai Gold Tracker
+
+## Goal
+
+Rank on Google Thailand for **ราคาทองวันนี้** (gold price today) and its variants (ราคาทองรูปพรรณวันนี้, ราคาทอง, ราคาทองคำวันนี้, ราคาทองย้อนหลัง). SEO is the product — every architectural decision favors indexability and speed over anything else. This is a content site, not an app; there is no login, no user accounts, no client-side state that matters to Google.
+
+## Stack
+
+- Next.js (App Router, TypeScript, Tailwind CSS)
+- Supabase (Postgres, Singapore region) — read via `anon` key in RSC, write only via `service_role` key in server-only routes
+- Deployed on Vercel, scheduled scraping via Vercel Cron
+- Source data: Thai Gold Traders Association (สมาคมค้าทองคำ, goldtraders.or.th) — no official public API; we call their internal JSON endpoints (`/api/GoldPrices/Latest`, `/api/GoldPrices/Details`) directly from the server. See fragility notes in the fetcher route's comments before changing the parser.
+
+## Standing rules
+
+1. **Every public page uses SSG or ISR — no client-only rendering for content Google must index.** Price data, tables, and text content must be present in the server-rendered HTML. Client components are only for interactive widgets layered on top of already-rendered content (e.g. chart hover, range toggle), never for the content itself.
+2. **Every page has complete Thai metadata (title, description), OpenGraph tags, and JSON-LD structured data.** No page ships without a `generateMetadata`/`metadata` export and at least one relevant JSON-LD block (WebSite/Organization sitewide, FAQPage where applicable).
+3. **Dates display in Thai Buddhist calendar (พ.ศ.) format.** Use the shared Thai date formatter — never raw ISO strings or Gregorian years in UI copy.
+4. **Prices always show all four values:** ทองคำแท่ง รับซื้อ/ขายออก and ทองรูปพรรณ รับซื้อ (ฐานภาษี)/ขายออก, plus change vs. the previous update and vs. yesterday's close. Never show a partial price card.
+5. **Keep dependencies minimal; no heavy client bundles.** No headless-browser libraries, no heavy charting libraries, no client-side data-fetching libraries for content that can be server-rendered. Justify any new dependency against this rule before adding it.
+
+## Cron schedule (`vercel.json`)
+
+Two entries covering every 30 minutes from 08:00 to 19:00 Asia/Bangkok (UTC+7, no DST):
+`"0,30 1-11 * * *"` (08:00-18:30) + `"0 12 * * *"` (19:00). The 09:30 opening
+announcement is already covered by this cadence, so no separate entry exists for it.
+**Requires Vercel Pro** — the Hobby plan only allows once-daily cron schedules.
+
+## Explicitly out of scope (v2)
+
+Price alerts, LINE integration, user accounts, fuel/currency price tracking. Do not implement these unless asked.

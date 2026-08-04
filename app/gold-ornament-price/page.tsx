@@ -13,33 +13,33 @@ import { PriceCard } from "@/components/PriceCard";
 import { IntradayTable } from "@/components/IntradayTable";
 import { PriceChart } from "@/components/PriceChart";
 import { FaqSection } from "@/components/FaqSection";
-import { homeFaqItems } from "@/lib/faq-content";
+import { ornamentFaqItems } from "@/lib/faq-content";
 
 export const revalidate = 300;
 
-const TITLE = "ราคาทองวันนี้ อัปเดตราคาทองคำแท่ง ทองรูปพรรณ ล่าสุด";
+const TITLE = "ราคาทองรูปพรรณวันนี้ อัปเดตล่าสุด";
 const DESCRIPTION =
-  "เช็คราคาทองคำแท่งและทองรูปพรรณวันนี้ อัปเดตตามประกาศสมาคมค้าทองคำ พร้อมราคาย้อนหลัง กราฟราคาทอง 30 วัน และตารางราคาระหว่างวัน";
+  "เช็คราคาทองรูปพรรณวันนี้ ทั้งราคารับซื้อ (ฐานภาษี) และราคาขายออก อัปเดตตามประกาศสมาคมค้าทองคำ พร้อมราคาทองคำแท่งเปรียบเทียบ ราคาย้อนหลัง และกราฟราคาทอง 30 วัน";
 
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
-  alternates: { canonical: "/" },
+  alternates: { canonical: "/gold-ornament-price" },
   openGraph: {
     title: TITLE,
     description: DESCRIPTION,
-    url: "/",
+    url: "/gold-ornament-price",
   },
 };
 
-interface HomeData {
+interface PageData {
   latest: GoldPriceRow[];
   intraday: GoldPriceRow[];
   yesterday: DailyGoldPriceRow | null;
   history: DailyGoldPriceRow[];
 }
 
-async function loadHomeData(): Promise<HomeData> {
+async function loadData(): Promise<PageData> {
   try {
     const [latest, intraday, yesterday, history] = await Promise.all([
       getLatestPrices(2),
@@ -50,22 +50,22 @@ async function loadHomeData(): Promise<HomeData> {
     return { latest, intraday, yesterday, history };
   } catch (err) {
     console.error(
-      "[home] failed to load price data:",
+      "[gold-ornament-price] failed to load price data:",
       err instanceof Error ? err.message : err,
     );
     return { latest: [], intraday: [], yesterday: null, history: [] };
   }
 }
 
-export default async function HomePage() {
-  const { latest, intraday, yesterday, history } = await loadHomeData();
+export default async function GoldOrnamentPricePage() {
+  const { latest, intraday, yesterday, history } = await loadData();
   const [current, previous] = latest;
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-4 py-6">
       <header>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50 sm:text-3xl">
-          ราคาทองวันนี้
+          ราคาทองรูปพรรณวันนี้
           <span className="mt-1 block text-base font-normal text-gray-500 dark:text-gray-400">
             {formatThaiDateLong(new Date())}
           </span>
@@ -73,7 +73,12 @@ export default async function HomePage() {
       </header>
 
       {current ? (
-        <PriceCard latest={current} previous={previous ?? null} yesterday={yesterday} />
+        <PriceCard
+          latest={current}
+          previous={previous ?? null}
+          yesterday={yesterday}
+          emphasis="ornament"
+        />
       ) : (
         <p className="rounded-2xl border border-dashed border-gray-300 p-5 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
           ยังไม่มีข้อมูลราคาทองในระบบ กรุณากลับมาตรวจสอบใหม่อีกครั้ง
@@ -82,7 +87,7 @@ export default async function HomePage() {
 
       <section>
         <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">
-          ราคาทองระหว่างวันนี้
+          ราคาทองรูปพรรณระหว่างวันนี้
         </h2>
         <div className="mt-3">
           <IntradayTable rows={intraday} />
@@ -91,10 +96,14 @@ export default async function HomePage() {
 
       <section>
         <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">
-          กราฟราคาทองย้อนหลัง 30 วัน
+          กราฟราคาทองรูปพรรณย้อนหลัง 30 วัน
         </h2>
         <div className="mt-3">
-          <PriceChart rows={history} title="ราคาทองคำแท่งขายออกย้อนหลัง 30 วัน" />
+          <PriceChart
+            rows={history}
+            metric="ornamentSell"
+            title="ราคาทองรูปพรรณขายออกย้อนหลัง 30 วัน"
+          />
         </div>
         <Link
           href="/history"
@@ -104,7 +113,7 @@ export default async function HomePage() {
         </Link>
       </section>
 
-      <FaqSection items={homeFaqItems} />
+      <FaqSection items={ornamentFaqItems} />
 
       <footer className="mt-4 border-t border-gray-200 pt-4 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
         <p>
