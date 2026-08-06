@@ -58,8 +58,11 @@ export async function fetchLatestGoldPrice(): Promise<GoldPriceSnapshot> {
   }
 
   if (!response.ok) {
+    const cfRay = response.headers.get("cf-ray");
+    const server = response.headers.get("server");
+    const bodySnippet = (await response.text().catch(() => "")).slice(0, 300);
     throw new GoldPriceFetchError(
-      `goldtraders API returned HTTP ${response.status}`,
+      `goldtraders API returned HTTP ${response.status} (server=${server}, cf-ray=${cfRay}): ${bodySnippet}`,
     );
   }
 
