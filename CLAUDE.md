@@ -10,8 +10,9 @@ Rank on Google Thailand for **ราคาทองวันนี้** (gold pr
 
 - Next.js (App Router, TypeScript, Tailwind CSS)
 - Supabase (Postgres, Singapore region) — read via `anon` key in RSC, write only via `service_role` key in server-only routes
-- Deployed on Vercel, scheduled scraping via Vercel Cron
-- Source data: Thai Gold Traders Association (สมาคมค้าทองคำ, goldtraders.or.th) — no official public API; we call their internal JSON endpoints (`/api/GoldPrices/Latest`, `/api/GoldPrices/Details`) directly from the server. See fragility notes in the fetcher route's comments before changing the parser.
+- Deployed on Vercel. Scheduled price-fetching runs on **Supabase Edge Functions + pg_cron**, not Vercel Cron — Vercel's serverless IPs get a Cloudflare JS challenge from goldtraders.or.th that can't be passed server-side; Supabase's infrastructure isn't challenged. See `supabase/functions/fetch-prices/`.
+- Source data: Thai Gold Traders Association (สมาคมค้าทองคำ, goldtraders.or.th) — no official public API; we call their internal JSON endpoints (`/api/GoldPrices/Latest`, `/api/GoldPrices/Details`) directly from the server. See fragility notes in the fetcher's comments before changing the parser.
+- `app/api/cron/fetch-prices/route.ts` still exists but is **not used in production** (it would hit the same Cloudflare wall if actually invoked on Vercel) — kept only because `scripts/backfill-test.ts` exercises the same underlying `lib/` functions for local testing.
 
 ## Standing rules
 
@@ -21,12 +22,13 @@ Rank on Google Thailand for **ราคาทองวันนี้** (gold pr
 4. **Prices always show all four values:** ทองคำแท่ง รับซื้อ/ขายออก and ทองรูปพรรณ รับซื้อ (ฐานภาษี)/ขายออก, plus change vs. the previous update and vs. yesterday's close. Never show a partial price card.
 5. **Keep dependencies minimal; no heavy client bundles.** No headless-browser libraries, no heavy charting libraries, no client-side data-fetching libraries for content that can be server-rendered. Justify any new dependency against this rule before adding it.
 
-## Cron schedule (`vercel.json`)
+## Cron schedule (Supabase `pg_cron`)
 
-Two entries covering every 30 minutes from 08:00 to 19:00 Asia/Bangkok (UTC+7, no DST):
-`"0,30 1-11 * * *"` (08:00-18:30) + `"0 12 * * *"` (19:00). The 09:30 opening
+Two `cron.schedule(...)` jobs (run manually via the SQL editor, not committed — they
+embed `CRON_SECRET`) covering every 30 minutes from 08:00 to 19:00 Asia/Bangkok (UTC+7,
+no DST): `"0,30 1-11 * * *"` (08:00-18:30) + `"0 12 * * *"` (19:00). The 09:30 opening
 announcement is already covered by this cadence, so no separate entry exists for it.
-**Requires Vercel Pro** — the Hobby plan only allows once-daily cron schedules.
+Each calls `net.http_post()` against the deployed `fetch-prices` Edge Function.
 
 ## Explicitly out of scope (v2)
 
