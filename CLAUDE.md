@@ -37,7 +37,7 @@ Resend confirmation email -> `/alerts/confirm?token=` (auto-confirms on load, sa
 or `/alerts/unsubscribe?token=` (requires a button click - deletion is destructive, so it's
 a Server Action, not a GET-triggered side effect). `price_alerts` holds email PII: RLS is
 fully locked (no anon/authenticated policies at all), every read/write goes through
-`lib/supabase/admin.ts` server-side. Sending domain `send.thaigoldtracker.com` must be
+`lib/supabase/admin.ts` server-side. Sending domain `thaigoldtracker.com` must be
 verified in Resend before this works. No rate-limiting/abuse protection exists yet
 (anyone can submit any email address) - add if this becomes a problem.
 

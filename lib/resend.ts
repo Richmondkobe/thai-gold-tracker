@@ -1,7 +1,7 @@
 import "server-only";
 
 const RESEND_API_URL = "https://api.resend.com/emails";
-const FROM_ADDRESS = "alerts@send.thaigoldtracker.com";
+const FROM_ADDRESS = "alerts@thaigoldtracker.com";
 
 export class EmailSendError extends Error {}
 
