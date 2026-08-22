@@ -32,6 +32,10 @@ const changeNumberFormatter = new Intl.NumberFormat("th-TH", {
   maximumFractionDigits: 2,
 });
 
+const wholeNumberFormatter = new Intl.NumberFormat("th-TH", {
+  maximumFractionDigits: 0,
+});
+
 /** e.g. "วันอังคารที่ 4 สิงหาคม พ.ศ. 2569" */
 export function formatThaiDateLong(date: Date): string {
   const parts = longDateFormatter.formatToParts(date);
@@ -58,8 +62,24 @@ export function formatThaiPrice(value: number): string {
   return numberFormatter.format(value);
 }
 
+/** e.g. "64,150" - no decimals, for derived stats (averages) rather than actual traded prices. */
+export function formatThaiWholeNumber(value: number): string {
+  return wholeNumberFormatter.format(value);
+}
+
 /** e.g. "+100.00" / "-50.00" / "0.00" */
 export function formatThaiChange(value: number): string {
   const sign = value > 0 ? "+" : value < 0 ? "-" : "";
   return `${sign}${changeNumberFormatter.format(Math.abs(value))}`;
+}
+
+/** e.g. "+4.5%" / "-2.1%" */
+export function formatThaiPercent(value: number): string {
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}${Math.abs(value).toFixed(1)}%`;
+}
+
+/** Gregorian year -> พ.ศ. (Buddhist era) year. */
+export function toBuddhistYear(gregorianYear: number): number {
+  return gregorianYear + 543;
 }

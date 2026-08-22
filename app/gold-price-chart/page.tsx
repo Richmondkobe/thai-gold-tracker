@@ -3,10 +3,13 @@ import Link from "next/link";
 import {
   getDailyHistory,
   getIntradayHistory,
+  getYearlyStats,
   type DailyGoldPriceRow,
   type GoldPriceRow,
+  type YearlyGoldPriceStat,
 } from "@/lib/gold-price-queries";
 import { GoldPriceChartExplorer } from "@/components/GoldPriceChartExplorer";
+import { YearlyStatsTable } from "@/components/YearlyStatsTable";
 
 export const revalidate = 3600;
 
@@ -28,26 +31,28 @@ export const metadata: Metadata = {
 interface ChartPageData {
   intraday: GoldPriceRow[];
   daily: DailyGoldPriceRow[];
+  yearlyStats: YearlyGoldPriceStat[];
 }
 
 async function loadChartData(): Promise<ChartPageData> {
   try {
-    const [intraday, daily] = await Promise.all([
+    const [intraday, daily, yearlyStats] = await Promise.all([
       getIntradayHistory(183),
       getDailyHistory(3650),
+      getYearlyStats(),
     ]);
-    return { intraday, daily };
+    return { intraday, daily, yearlyStats };
   } catch (err) {
     console.error(
       "[gold-price-chart] failed to load price data:",
       err instanceof Error ? err.message : err,
     );
-    return { intraday: [], daily: [] };
+    return { intraday: [], daily: [], yearlyStats: [] };
   }
 }
 
 export default async function GoldPriceChartPage() {
-  const { intraday, daily } = await loadChartData();
+  const { intraday, daily, yearlyStats } = await loadChartData();
   const hasData = intraday.length >= 2 || daily.length >= 2;
 
   return (
@@ -68,6 +73,8 @@ export default async function GoldPriceChartPage() {
           ยังไม่มีข้อมูลราคาทองย้อนหลังในระบบ กรุณากลับมาตรวจสอบใหม่อีกครั้ง
         </p>
       )}
+
+      <YearlyStatsTable stats={yearlyStats} />
 
       <p className="text-sm text-gray-600 dark:text-gray-400">
         ต้องการดูราคาปิดรายวันในรูปแบบตาราง พร้อมเลือกช่วง 30/90/365 วัน?{" "}

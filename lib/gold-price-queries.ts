@@ -162,3 +162,28 @@ export async function getDailyHistory(days: number): Promise<DailyGoldPriceRow[]
   );
   return rows.map(toDailyRow).reverse();
 }
+
+export interface YearlyGoldPriceStat {
+  /** Gregorian year - convert with toBuddhistYear() for display. */
+  year: number;
+  minPrice: number;
+  maxPrice: number;
+  avgPrice: number;
+}
+
+/** Per-year min/max/avg of bar_sell, oldest first. Aggregated in Postgres (yearly_gold_price_stats view) - only ~11 rows, no pagination needed. */
+export async function getYearlyStats(): Promise<YearlyGoldPriceStat[]> {
+  const supabase = createPublicClient();
+  const { data, error } = await supabase
+    .from("yearly_gold_price_stats")
+    .select("year, min_price, max_price, avg_price")
+    .order("year", { ascending: true });
+
+  if (error) throw new Error(`getYearlyStats failed: ${error.message}`);
+  return (data ?? []).map((row) => ({
+    year: row.year,
+    minPrice: Number(row.min_price),
+    maxPrice: Number(row.max_price),
+    avgPrice: Number(row.avg_price),
+  }));
+}
