@@ -1,5 +1,5 @@
 import { formatThaiDateShort, formatThaiPrice } from "@/lib/thai-date";
-import type { DailyGoldPriceRow } from "@/lib/gold-price-queries";
+import type { ChartablePriceRow } from "@/lib/gold-price-queries";
 
 const WIDTH = 600;
 const HEIGHT = 220;
@@ -13,7 +13,7 @@ export function PriceChart({
   title,
   metric = "barSell",
 }: {
-  rows: DailyGoldPriceRow[];
+  rows: ChartablePriceRow[];
   title: string;
   metric?: "barSell" | "ornamentSell";
 }) {
@@ -25,7 +25,7 @@ export function PriceChart({
     );
   }
 
-  const value = (row: DailyGoldPriceRow) => row[metric];
+  const value = (row: ChartablePriceRow) => row[metric];
   const prices = rows.map(value);
   const min = Math.min(...prices);
   const max = Math.max(...prices);

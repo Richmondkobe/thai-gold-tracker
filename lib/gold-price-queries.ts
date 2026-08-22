@@ -18,6 +18,13 @@ export interface DailyGoldPriceRow {
   ornamentSell: number;
 }
 
+/** What PriceChart actually needs - satisfied structurally by both GoldPriceRow and DailyGoldPriceRow. */
+export interface ChartablePriceRow {
+  fetchedAt: Date;
+  barSell: number;
+  ornamentSell: number;
+}
+
 interface GoldPriceQueryRow {
   fetched_at: string;
   bar_buy: number | string;
@@ -42,6 +49,35 @@ function toRow(row: GoldPriceQueryRow): GoldPriceRow {
 
 function toDailyRow(row: DailyGoldPriceQueryRow): DailyGoldPriceRow {
   return { priceDate: row.price_date, ...toRow(row) };
+}
+
+const MAX_PAGE_SIZE = 1000;
+
+/**
+ * Supabase's PostgREST API caps each response at ~1000 rows by default,
+ * silently, regardless of an explicit .limit() - confirmed live: requesting
+ * 3650 rows from daily_gold_prices (3,319 available) returned only 1000.
+ * Pages through with .range() until `maxRows` is hit or data runs out.
+ */
+async function fetchAllRows<T>(
+  fetchPage: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  maxRows: number,
+): Promise<T[]> {
+  const results: T[] = [];
+  let from = 0;
+  while (results.length < maxRows) {
+    const to = Math.min(from + MAX_PAGE_SIZE, maxRows) - 1;
+    const { data, error } = await fetchPage(from, to);
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) break;
+    results.push(...data);
+    if (data.length < to - from + 1) break;
+    from += data.length;
+  }
+  return results;
 }
 
 /** Most recent rows first (index 0 = latest). Used for the price card and its "vs previous update" delta. */
@@ -90,15 +126,39 @@ export async function getYesterdayClose(): Promise<DailyGoldPriceRow | null> {
   return data ? toDailyRow(data) : null;
 }
 
+/** Every intraday update in the last `days` calendar days, oldest first. Only sane for short windows - use getDailyHistory for anything beyond a few months. */
+export async function getIntradayHistory(days: number): Promise<GoldPriceRow[]> {
+  const since = addDays(new Date(), -days);
+  const supabase = createPublicClient();
+
+  // Ascending order + pagination-by-count would skip the *newest* data once
+  // capped at 1000, which is the opposite of what callers want - so this
+  // caps at a generous safety ceiling well above any realistic row count
+  // for the date-bounded ranges this is actually used for (1-6 months).
+  const rows = await fetchAllRows<GoldPriceQueryRow>(
+    (from, to) =>
+      supabase
+        .from("gold_prices")
+        .select("fetched_at, bar_buy, bar_sell, ornament_buy, ornament_sell")
+        .gte("fetched_at", since.toISOString())
+        .order("fetched_at", { ascending: true })
+        .range(from, to),
+    50_000,
+  );
+  return rows.map(toRow);
+}
+
 /** Daily closing prices for the last `days` calendar days, oldest first (for charts/tables). */
 export async function getDailyHistory(days: number): Promise<DailyGoldPriceRow[]> {
   const supabase = createPublicClient();
-  const { data, error } = await supabase
-    .from("daily_gold_prices")
-    .select("price_date, fetched_at, bar_buy, bar_sell, ornament_buy, ornament_sell")
-    .order("price_date", { ascending: false })
-    .limit(days);
-
-  if (error) throw new Error(`getDailyHistory failed: ${error.message}`);
-  return (data ?? []).map(toDailyRow).reverse();
+  const rows = await fetchAllRows<DailyGoldPriceQueryRow>(
+    (from, to) =>
+      supabase
+        .from("daily_gold_prices")
+        .select("price_date, fetched_at, bar_buy, bar_sell, ornament_buy, ornament_sell")
+        .order("price_date", { ascending: false })
+        .range(from, to),
+    days,
+  );
+  return rows.map(toDailyRow).reverse();
 }

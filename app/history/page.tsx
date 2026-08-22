@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getDailyHistory } from "@/lib/gold-price-queries";
 import { HistoryExplorer } from "@/components/HistoryExplorer";
 
@@ -52,6 +53,16 @@ export default async function HistoryPage() {
           ยังไม่มีข้อมูลราคาทองย้อนหลังในระบบ กรุณากลับมาตรวจสอบใหม่อีกครั้ง
         </p>
       )}
+
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        ต้องการดูกราฟแนวโน้มราคาทองระยะยาว ตั้งแต่ 1 เดือนถึง 10 ปี?{" "}
+        <Link
+          href="/gold-price-chart"
+          className="font-medium text-amber-600 hover:underline dark:text-amber-400"
+        >
+          ดูกราฟราคาทองย้อนหลัง →
+        </Link>
+      </p>
 
       <footer className="mt-4 border-t border-gray-200 pt-4 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
         <p>
