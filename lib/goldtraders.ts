@@ -9,8 +9,8 @@
 const LATEST_URL =
   "https://www.goldtraders.or.th/api/GoldPrices/Latest?readjson=false";
 
-const MIN_SANE_PRICE = 10_000;
-const MAX_SANE_PRICE = 100_000;
+export const MIN_SANE_PRICE = 10_000;
+export const MAX_SANE_PRICE = 100_000;
 
 export class GoldPriceFetchError extends Error {}
 
@@ -23,7 +23,8 @@ export interface GoldPriceSnapshot {
   ornamentSell: number;
 }
 
-function isSanePrice(value: unknown): value is number {
+/** Shared with scripts/backfill-history.ts, which hits a different GTA endpoint with the same field shape. */
+export function isSanePrice(value: unknown): value is number {
   return (
     typeof value === "number" &&
     Number.isFinite(value) &&
@@ -33,7 +34,7 @@ function isSanePrice(value: unknown): value is number {
 }
 
 /** GTA's `asTime` field has no timezone suffix (e.g. "2026-08-04T16:15:00") and is Bangkok local time. */
-function parseBangkokTime(asTime: unknown): Date | null {
+export function parseBangkokTime(asTime: unknown): Date | null {
   if (typeof asTime !== "string") return null;
   const date = new Date(`${asTime}+07:00`);
   return Number.isNaN(date.getTime()) ? null : date;

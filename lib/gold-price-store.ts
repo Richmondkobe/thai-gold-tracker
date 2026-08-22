@@ -37,17 +37,29 @@ export async function insertIfChanged(
     return { status: "skipped", reason: "unchanged", fetchedAt: fetchedAtIso };
   }
 
-  const { error: insertError } = await supabase.from("gold_prices").insert({
-    fetched_at: fetchedAtIso,
-    bar_buy: snapshot.barBuy,
-    bar_sell: snapshot.barSell,
-    ornament_buy: snapshot.ornamentBuy,
-    ornament_sell: snapshot.ornamentSell,
-    source: "goldtraders",
-  });
+  // Upsert, not plain insert: gold_prices.fetched_at has a unique constraint
+  // (migrations/0004_gold_prices_unique_fetched_at.sql), shared with the
+  // fetch-prices Edge Function and scripts/backfill-history.ts.
+  const { error: upsertError, count } = await supabase
+    .from("gold_prices")
+    .upsert(
+      {
+        fetched_at: fetchedAtIso,
+        bar_buy: snapshot.barBuy,
+        bar_sell: snapshot.barSell,
+        ornament_buy: snapshot.ornamentBuy,
+        ornament_sell: snapshot.ornamentSell,
+        source: "goldtraders",
+      },
+      { onConflict: "fetched_at", ignoreDuplicates: true, count: "exact" },
+    );
 
-  if (insertError) {
-    throw new Error(`insert failed: ${insertError.message}`);
+  if (upsertError) {
+    throw new Error(`upsert failed: ${upsertError.message}`);
+  }
+
+  if (!count || count === 0) {
+    return { status: "skipped", reason: "unchanged", fetchedAt: fetchedAtIso };
   }
 
   return { status: "inserted", fetchedAt: fetchedAtIso };

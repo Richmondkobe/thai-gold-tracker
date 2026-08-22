@@ -99,19 +99,34 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { error: insertError } = await supabase.from("gold_prices").insert({
-      fetched_at: fetchedAtIso,
-      bar_buy: barBuy,
-      bar_sell: barSell,
-      ornament_buy: ornamentBuy,
-      ornament_sell: ornamentSell,
-      source: "goldtraders",
-    });
+    // Upsert (not plain insert): gold_prices.fetched_at has a unique constraint
+    // (migrations/0004_gold_prices_unique_fetched_at.sql), shared with
+    // scripts/backfill-history.ts. The price-comparison check above already
+    // catches the common case, but this makes the insert itself idempotent at
+    // the DB level too, instead of throwing a constraint-violation 500 if this
+    // exact timestamp somehow already exists.
+    const { error: upsertError, count } = await supabase
+      .from("gold_prices")
+      .upsert(
+        {
+          fetched_at: fetchedAtIso,
+          bar_buy: barBuy,
+          bar_sell: barSell,
+          ornament_buy: ornamentBuy,
+          ornament_sell: ornamentSell,
+          source: "goldtraders",
+        },
+        { onConflict: "fetched_at", ignoreDuplicates: true, count: "exact" },
+      );
 
-    if (insertError) throw new Error(`insert failed: ${insertError.message}`);
+    if (upsertError) throw new Error(`upsert failed: ${upsertError.message}`);
 
     return new Response(
-      JSON.stringify({ status: "inserted", fetchedAt: fetchedAtIso }),
+      JSON.stringify({
+        status: count && count > 0 ? "inserted" : "skipped",
+        reason: count && count > 0 ? undefined : "duplicate fetched_at",
+        fetchedAt: fetchedAtIso,
+      }),
       { headers: { "content-type": "application/json" } },
     );
   } catch (err) {

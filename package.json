@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "backfill": "tsx --conditions=react-server scripts/backfill-test.ts"
+    "backfill": "tsx --conditions=react-server scripts/backfill-test.ts",
+    "backfill-history": "tsx --conditions=react-server scripts/backfill-history.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.0",
