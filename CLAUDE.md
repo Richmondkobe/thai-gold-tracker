@@ -30,6 +30,17 @@ no DST): `"0,30 1-11 * * *"` (08:00-18:30) + `"0 12 * * *"` (19:00). The 09:30 o
 announcement is already covered by this cadence, so no separate entry exists for it.
 Each calls `net.http_post()` against the deployed `fetch-prices` Edge Function.
 
+## Price alerts
+
+Email signup on the homepage (`components/PriceAlertSignup.tsx`) -> `POST /api/alerts` ->
+Resend confirmation email -> `/alerts/confirm?token=` (auto-confirms on load, safe/idempotent)
+or `/alerts/unsubscribe?token=` (requires a button click - deletion is destructive, so it's
+a Server Action, not a GET-triggered side effect). `price_alerts` holds email PII: RLS is
+fully locked (no anon/authenticated policies at all), every read/write goes through
+`lib/supabase/admin.ts` server-side. Sending domain `send.thaigoldtracker.com` must be
+verified in Resend before this works. No rate-limiting/abuse protection exists yet
+(anyone can submit any email address) - add if this becomes a problem.
+
 ## Explicitly out of scope (v2)
 
-Price alerts, LINE integration, user accounts, fuel/currency price tracking. Do not implement these unless asked.
+LINE integration, user accounts, fuel/currency price tracking. Do not implement these unless asked.

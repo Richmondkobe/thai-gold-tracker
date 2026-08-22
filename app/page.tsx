@@ -13,6 +13,7 @@ import { PriceCard } from "@/components/PriceCard";
 import { IntradayTable } from "@/components/IntradayTable";
 import { PriceChart } from "@/components/PriceChart";
 import { FaqSection } from "@/components/FaqSection";
+import { PriceAlertSignup } from "@/components/PriceAlertSignup";
 import { homeFaqItems } from "@/lib/faq-content";
 
 export const revalidate = 300;
@@ -79,6 +80,8 @@ export default async function HomePage() {
           ยังไม่มีข้อมูลราคาทองในระบบ กรุณากลับมาตรวจสอบใหม่อีกครั้ง
         </p>
       )}
+
+      <PriceAlertSignup />
 
       <section>
         <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">
