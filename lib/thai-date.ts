@@ -36,6 +36,22 @@ const wholeNumberFormatter = new Intl.NumberFormat("th-TH", {
   maximumFractionDigits: 0,
 });
 
+const bangkokDateKeyFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: BANGKOK_TZ,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/** Whether fetchedAt falls on today's calendar date in Bangkok time. */
+export function getMarketStatus(fetchedAt: Date): { isToday: boolean } {
+  return {
+    isToday:
+      bangkokDateKeyFormatter.format(fetchedAt) ===
+      bangkokDateKeyFormatter.format(new Date()),
+  };
+}
+
 /** e.g. "วันอังคารที่ 4 สิงหาคม พ.ศ. 2569" */
 export function formatThaiDateLong(date: Date): string {
   const parts = longDateFormatter.formatToParts(date);
