@@ -24,11 +24,13 @@ Rank on Google Thailand for **ราคาทองวันนี้** (gold pr
 
 ## Cron schedule (Supabase `pg_cron`)
 
-Two `cron.schedule(...)` jobs (run manually via the SQL editor, not committed — they
-embed `CRON_SECRET`) covering every 30 minutes from 08:00 to 19:00 Asia/Bangkok (UTC+7,
-no DST): `"0,30 1-11 * * *"` (08:00-18:30) + `"0 12 * * *"` (19:00). The 09:30 opening
-announcement is already covered by this cadence, so no separate entry exists for it.
-Each calls `net.http_post()` against the deployed `fetch-prices` Edge Function.
+One `cron.schedule(...)` job, `fetch-gold-prices` (run manually via the SQL editor,
+not committed — it embeds `CRON_SECRET`): `"*/30 * * * *"`, every 30 minutes around
+the clock. Off-hours runs are cheap no-ops — the Edge Function's unchanged-price
+check skips the insert, and only a genuinely new announcement fires price alerts.
+It calls `net.http_post()` against the deployed `fetch-prices` Edge Function.
+(Verified against live `cron.job` 2026-08-30; an earlier two-job 08:00-19:00
+Bangkok schedule described here previously has been replaced.)
 
 ## Price alerts
 

@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { PROFIT_CALC_PATH, SITE_URL } from "@/lib/site";
 import { WEIGHT_PAGES, weightPagePath } from "@/lib/weight-pages";
 import { GUIDE_PAGES, guidePagePath } from "@/lib/guide-pages";
+import { TRUST_PAGES } from "@/lib/trust-pages";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
@@ -48,5 +49,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "daily",
       priority: 0.7,
     },
+    ...TRUST_PAGES.map((p) => ({
+      url: `${SITE_URL}${encodeURI(p.pathTh)}`,
+      lastModified,
+      changeFrequency: "monthly" as const,
+      priority: 0.3,
+    })),
   ];
 }

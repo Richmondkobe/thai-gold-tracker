@@ -22,6 +22,22 @@ const nextConfig: NextConfig = {
         source: `/${encodeURIComponent("คำนวณกำไรขาดทุนทอง")}`,
         destination: "/gold-profit",
       },
+      {
+        source: `/${encodeURIComponent("เกี่ยวกับเรา")}`,
+        destination: "/site-info/about",
+      },
+      {
+        source: `/${encodeURIComponent("แหล่งข้อมูล")}`,
+        destination: "/site-info/data-source",
+      },
+      {
+        source: `/${encodeURIComponent("ติดต่อเรา")}`,
+        destination: "/site-info/contact",
+      },
+      {
+        source: `/${encodeURIComponent("ข้อกำหนด")}`,
+        destination: "/site-info/terms",
+      },
     ];
   },
   async redirects() {
@@ -39,6 +55,26 @@ const nextConfig: NextConfig = {
       {
         source: "/gold-profit",
         destination: "/คำนวณกำไรขาดทุนทอง",
+        permanent: true,
+      },
+      {
+        source: "/site-info/about",
+        destination: "/เกี่ยวกับเรา",
+        permanent: true,
+      },
+      {
+        source: "/site-info/data-source",
+        destination: "/แหล่งข้อมูล",
+        permanent: true,
+      },
+      {
+        source: "/site-info/contact",
+        destination: "/ติดต่อเรา",
+        permanent: true,
+      },
+      {
+        source: "/site-info/terms",
+        destination: "/ข้อกำหนด",
         permanent: true,
       },
     ];
