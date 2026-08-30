@@ -10,7 +10,7 @@ import {
 } from "@/lib/guide-pages";
 import { WEIGHT_PAGES, weightPagePath } from "@/lib/weight-pages";
 import { JsonLd } from "@/components/JsonLd";
-import { SITE_URL } from "@/lib/site";
+import { PROFIT_CALC_PATH, SITE_URL } from "@/lib/site";
 
 // Same routing pattern as app/gold-weight/[weightSlug]: ASCII folder, Thai
 // public URL via rewrite, unknown slugs 404 via notFound() (dynamicParams=false
@@ -186,12 +186,20 @@ function Gold1BahtGramsContent({ config }: { config: GuidePageConfig }) {
             </li>
           ))}
         </ul>
-        <Link
-          href="/"
-          className="mt-3 inline-block text-sm font-medium text-amber-600 hover:underline dark:text-amber-400"
-        >
-          ดูราคาทองวันนี้ทั้งหมด →
-        </Link>
+        <div className="mt-3 flex flex-col gap-1 sm:flex-row sm:gap-6">
+          <Link
+            href="/"
+            className="inline-block text-sm font-medium text-amber-600 hover:underline dark:text-amber-400"
+          >
+            ดูราคาทองวันนี้ทั้งหมด →
+          </Link>
+          <Link
+            href={PROFIT_CALC_PATH}
+            className="inline-block text-sm font-medium text-amber-600 hover:underline dark:text-amber-400"
+          >
+            คำนวณกำไรขาดทุนทอง →
+          </Link>
+        </div>
       </section>
 
       <footer className="mt-4 border-t border-gray-200 pt-4 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">

@@ -12,6 +12,7 @@ import {
 import { PriceCard } from "@/components/PriceCard";
 import { GoldCalculator } from "@/components/GoldCalculator";
 import { WEIGHT_PAGES, weightPagePath } from "@/lib/weight-pages";
+import { PROFIT_CALC_PATH } from "@/lib/site";
 import { IntradayTable } from "@/components/IntradayTable";
 import { PriceChart } from "@/components/PriceChart";
 import { FaqSection } from "@/components/FaqSection";
@@ -92,6 +93,12 @@ export default async function HomePage() {
                 </li>
               ))}
             </ul>
+            <Link
+              href={PROFIT_CALC_PATH}
+              className="mt-2 inline-block text-sm font-medium text-amber-600 hover:underline dark:text-amber-400"
+            >
+              คำนวณกำไรขาดทุนจากทองที่ถืออยู่ →
+            </Link>
           </nav>
         </>
       ) : (

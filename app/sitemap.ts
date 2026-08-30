@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { SITE_URL } from "@/lib/site";
+import { PROFIT_CALC_PATH, SITE_URL } from "@/lib/site";
 import { WEIGHT_PAGES, weightPagePath } from "@/lib/weight-pages";
 import { GUIDE_PAGES, guidePagePath } from "@/lib/guide-pages";
 
@@ -42,5 +42,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     ...weightPages,
     ...guidePages,
+    {
+      url: `${SITE_URL}${encodeURI(PROFIT_CALC_PATH)}`,
+      lastModified,
+      changeFrequency: "daily",
+      priority: 0.7,
+    },
   ];
 }

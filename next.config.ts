@@ -18,6 +18,10 @@ const nextConfig: NextConfig = {
         source: `/${encodeURIComponent("ความรู้")}/:guideSlug`,
         destination: "/gold-guide/:guideSlug",
       },
+      {
+        source: `/${encodeURIComponent("คำนวณกำไรขาดทุนทอง")}`,
+        destination: "/gold-profit",
+      },
     ];
   },
   async redirects() {
@@ -30,6 +34,11 @@ const nextConfig: NextConfig = {
       {
         source: "/gold-guide/:guideSlug",
         destination: "/ความรู้/:guideSlug",
+        permanent: true,
+      },
+      {
+        source: "/gold-profit",
+        destination: "/คำนวณกำไรขาดทุนทอง",
         permanent: true,
       },
     ];

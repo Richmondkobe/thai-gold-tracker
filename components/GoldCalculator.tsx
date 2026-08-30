@@ -2,20 +2,15 @@
 
 import { useState } from "react";
 import { formatThaiPrice } from "@/lib/thai-date";
-import { BAHT_TO_GRAM_BAR, BAHT_TO_GRAM_ORNAMENT } from "@/lib/gold-weight";
+import {
+  BAHT_TO_GRAM_BAR,
+  BAHT_TO_GRAM_ORNAMENT,
+  QUICK_WEIGHTS,
+} from "@/lib/gold-weight";
 import type { GoldPriceRow } from "@/lib/gold-price-queries";
 
 type GoldType = "bar" | "ornament";
 type WeightMode = "baht" | "gram";
-
-const QUICK_WEIGHTS = [
-  { label: "1 สลึง", baht: 0.25 },
-  { label: "ครึ่งบาท", baht: 0.5 },
-  { label: "1 บาท", baht: 1 },
-  { label: "2 บาท", baht: 2 },
-  { label: "5 บาท", baht: 5 },
-  { label: "10 บาท", baht: 10 },
-];
 
 export function GoldCalculator({
   latest,

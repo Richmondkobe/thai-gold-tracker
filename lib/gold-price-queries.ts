@@ -126,6 +126,25 @@ export async function getYesterdayClose(): Promise<DailyGoldPriceRow | null> {
   return data ? toDailyRow(data) : null;
 }
 
+/** The daily close on the given Bangkok date (YYYY-MM-DD), or the most recent
+ *  close before it when the market was closed that day. Null when the date
+ *  predates the data (history starts 2016-01-02). */
+export async function getDailyCloseOnOrBefore(
+  date: string,
+): Promise<DailyGoldPriceRow | null> {
+  const supabase = createPublicClient();
+  const { data, error } = await supabase
+    .from("daily_gold_prices")
+    .select("price_date, fetched_at, bar_buy, bar_sell, ornament_buy, ornament_sell")
+    .lte("price_date", date)
+    .order("price_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(`getDailyCloseOnOrBefore failed: ${error.message}`);
+  return data ? toDailyRow(data) : null;
+}
+
 /** Every intraday update in the last `days` calendar days, oldest first. Only sane for short windows - use getDailyHistory for anything beyond a few months. */
 export async function getIntradayHistory(days: number): Promise<GoldPriceRow[]> {
   const since = addDays(new Date(), -days);
