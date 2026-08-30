@@ -17,10 +17,16 @@ const QUICK_WEIGHTS = [
   { label: "10 บาท", baht: 10 },
 ];
 
-export function GoldCalculator({ latest }: { latest: GoldPriceRow }) {
+export function GoldCalculator({
+  latest,
+  initialBahtWeight = 1,
+}: {
+  latest: GoldPriceRow;
+  initialBahtWeight?: number;
+}) {
   const [goldType, setGoldType] = useState<GoldType>("bar");
   const [mode, setMode] = useState<WeightMode>("baht");
-  const [weightInput, setWeightInput] = useState("1");
+  const [weightInput, setWeightInput] = useState(String(initialBahtWeight));
 
   const bahtToGram = goldType === "bar" ? BAHT_TO_GRAM_BAR : BAHT_TO_GRAM_ORNAMENT;
   const parsed = Number(weightInput);

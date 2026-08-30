@@ -11,6 +11,7 @@ import {
 } from "@/lib/gold-price-queries";
 import { PriceCard } from "@/components/PriceCard";
 import { GoldCalculator } from "@/components/GoldCalculator";
+import { WEIGHT_PAGES, weightPagePath } from "@/lib/weight-pages";
 import { IntradayTable } from "@/components/IntradayTable";
 import { PriceChart } from "@/components/PriceChart";
 import { FaqSection } from "@/components/FaqSection";
@@ -78,6 +79,20 @@ export default async function HomePage() {
         <>
           <PriceCard latest={current} previous={previous ?? null} yesterday={yesterday} />
           <GoldCalculator latest={current} />
+          <nav aria-label="ราคาทองรายน้ำหนัก" className="-mt-4">
+            <ul className="flex flex-wrap gap-2">
+              {WEIGHT_PAGES.map((p) => (
+                <li key={p.slug}>
+                  <Link
+                    href={weightPagePath(p)}
+                    className="inline-block rounded-full border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:border-amber-500 hover:text-amber-600 dark:border-gray-700 dark:text-gray-300"
+                  >
+                    ราคา{p.nameTh}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
         </>
       ) : (
         <p className="rounded-2xl border border-dashed border-gray-300 p-5 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">

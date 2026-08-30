@@ -1,9 +1,5 @@
-import {
-  formatThaiDateLong,
-  formatThaiPrice,
-  formatThaiTime,
-  getMarketStatus,
-} from "@/lib/thai-date";
+import { formatThaiPrice } from "@/lib/thai-date";
+import { MarketStatusLine } from "@/components/MarketStatusLine";
 import { ChangeIndicator } from "@/components/ChangeIndicator";
 import type { DailyGoldPriceRow, GoldPriceRow } from "@/lib/gold-price-queries";
 
@@ -35,7 +31,6 @@ export function PriceCard({
 
   const vsPrevious = previousValue !== null ? headlineValue - previousValue : null;
   const vsYesterday = yesterdayValue !== null ? headlineValue - yesterdayValue : null;
-  const { isToday } = getMarketStatus(latest.fetchedAt);
 
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -64,19 +59,7 @@ export function PriceCard({
         <PriceCell label="ทองรูปพรรณ ขายออก" value={latest.ornamentSell} />
       </dl>
 
-      {isToday ? (
-        <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-          อัปเดตล่าสุด {formatThaiTime(latest.fetchedAt)}
-        </p>
-      ) : (
-        <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-          <p className="font-medium">ตลาดปิด</p>
-          <p>
-            ราคาล่าสุดจากประกาศ{formatThaiDateLong(latest.fetchedAt)} เวลา{" "}
-            {formatThaiTime(latest.fetchedAt)}
-          </p>
-        </div>
-      )}
+      <MarketStatusLine fetchedAt={latest.fetchedAt} />
     </section>
   );
 }
