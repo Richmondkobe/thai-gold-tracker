@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/lib/site";
 import { WEIGHT_PAGES, weightPagePath } from "@/lib/weight-pages";
+import { GUIDE_PAGES, guidePagePath } from "@/lib/guide-pages";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
@@ -10,6 +11,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     lastModified,
     changeFrequency: "hourly",
     priority: 0.8,
+  }));
+
+  const guidePages: MetadataRoute.Sitemap = GUIDE_PAGES.map((p) => ({
+    url: `${SITE_URL}${encodeURI(guidePagePath(p))}`,
+    lastModified,
+    changeFrequency: "monthly",
+    priority: 0.6,
   }));
 
   return [
@@ -33,5 +41,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.7,
     },
     ...weightPages,
+    ...guidePages,
   ];
 }

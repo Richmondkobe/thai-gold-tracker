@@ -9,6 +9,7 @@ import {
   weightPagePath,
   type WeightPageConfig,
 } from "@/lib/weight-pages";
+import { GUIDE_PAGES, guidePagePath } from "@/lib/guide-pages";
 import { GoldCalculator } from "@/components/GoldCalculator";
 import { MarketStatusLine } from "@/components/MarketStatusLine";
 import { JsonLd } from "@/components/JsonLd";
@@ -158,12 +159,20 @@ export default async function WeightPage({ params }: Props) {
             </li>
           ))}
         </ul>
-        <Link
-          href="/"
-          className="mt-3 inline-block text-sm font-medium text-amber-600 hover:underline dark:text-amber-400"
-        >
-          ดูราคาทองวันนี้ทั้งหมด →
-        </Link>
+        <div className="mt-3 flex flex-col gap-1 sm:flex-row sm:gap-6">
+          <Link
+            href="/"
+            className="inline-block text-sm font-medium text-amber-600 hover:underline dark:text-amber-400"
+          >
+            ดูราคาทองวันนี้ทั้งหมด →
+          </Link>
+          <Link
+            href={guidePagePath(GUIDE_PAGES[0])}
+            className="inline-block text-sm font-medium text-amber-600 hover:underline dark:text-amber-400"
+          >
+            ทอง 1 บาท กี่กรัม? ตารางแปลงน้ำหนักทอง →
+          </Link>
+        </div>
       </section>
 
       <footer className="mt-4 border-t border-gray-200 pt-4 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
