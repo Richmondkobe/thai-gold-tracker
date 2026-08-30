@@ -31,6 +31,193 @@ function parseBangkokTime(asTime: unknown): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+// ---------------------------------------------------------------------------
+// Price alerts. Runs only after a NEW price row is inserted. Needs two extra
+// secrets (set like CRON_SECRET, via `supabase secrets set` or the Dashboard):
+//   RESEND_API_KEY - without it the block logs and skips; alerts stay armed.
+//   SITE_URL       - for email links; falls back to the production domain.
+// One-shot semantics: triggered_at is stamped after a successful send and the
+// alert never fires again; users re-subscribe for a new target.
+
+const SITE_URL_FALLBACK = "https://thaigoldtracker.com";
+const RESEND_API_URL = "https://api.resend.com/emails";
+const FROM_ADDRESS = "alerts@thaigoldtracker.com";
+
+const thaiPriceFormatter = new Intl.NumberFormat("th-TH", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const thaiDateFormatter = new Intl.DateTimeFormat("th-TH-u-ca-buddhist", {
+  timeZone: "Asia/Bangkok",
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+const thaiTimeFormatter = new Intl.DateTimeFormat("th-TH", {
+  timeZone: "Asia/Bangkok",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+// Matches lib/thai-date.ts formatThaiDateLong: "วันอาทิตย์ที่ 30 สิงหาคม พ.ศ. 2569".
+function formatThaiDateLong(date: Date): string {
+  return thaiDateFormatter
+    .formatToParts(date)
+    .map((part) => (part.type === "year" ? `พ.ศ. ${part.value}` : part.value))
+    .join("");
+}
+
+// Duplicated from lib/resend.ts, which is Next-server-only and not importable here.
+async function sendEmail(
+  apiKey: string,
+  opts: { to: string; subject: string; html: string },
+): Promise<void> {
+  const response = await fetch(RESEND_API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: FROM_ADDRESS,
+      to: opts.to,
+      subject: opts.subject,
+      html: opts.html,
+    }),
+  });
+
+  if (!response.ok) {
+    const bodySnippet = (await response.text().catch(() => "")).slice(0, 300);
+    throw new Error(`Resend API returned HTTP ${response.status}: ${bodySnippet}`);
+  }
+}
+
+interface ArmedAlert {
+  id: number;
+  email: string;
+  target_price: number | string;
+  direction: "above" | "below";
+  token: string;
+}
+
+function alertEmailHtml(opts: {
+  alert: ArmedAlert;
+  barSell: number;
+  fetchedAt: Date;
+  siteUrl: string;
+}): string {
+  const { alert, barSell, fetchedAt, siteUrl } = opts;
+  const directionLabel = alert.direction === "above" ? "สูงกว่า" : "ต่ำกว่า";
+  const targetText = thaiPriceFormatter.format(Number(alert.target_price));
+  const unsubscribeUrl = `${siteUrl}/alerts/unsubscribe?token=${alert.token}`;
+
+  return `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+      <h2>ราคาทองถึงเป้าหมายของคุณแล้ว</h2>
+      <p>
+        ราคาทองคำแท่งขายออกขณะนี้
+        <strong>${thaiPriceFormatter.format(barSell)} บาท</strong>
+        ตามประกาศของสมาคมค้าทองคำ
+        ${formatThaiDateLong(fetchedAt)} เวลา ${thaiTimeFormatter.format(fetchedAt)} น.
+      </p>
+      <p>
+        เป้าหมายที่คุณตั้งไว้: แจ้งเตือนเมื่อราคา<strong>${directionLabel} ${targetText} บาท</strong>
+      </p>
+      <p>
+        <a href="${siteUrl}" style="display:inline-block;background:#f59e0b;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;">
+          ดูราคาทองวันนี้
+        </a>
+      </p>
+      <p style="color:#888;font-size:13px;">
+        การแจ้งเตือนนี้ส่งให้เพียงครั้งเดียว หากต้องการตั้งเป้าหมายใหม่
+        สามารถสมัครรับการแจ้งเตือนได้อีกครั้งที่เว็บไซต์
+      </p>
+      <p style="font-size:12px;">
+        <a href="${unsubscribeUrl}" style="color:#888;">ยกเลิกการแจ้งเตือน</a>
+      </p>
+    </div>
+  `;
+}
+
+/** Fires armed alerts for a freshly inserted price. Never throws: the price
+ *  upsert is the function's primary job and must not fail because of alerts. */
+async function fireAlerts(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  barSell: number,
+  fetchedAt: Date,
+): Promise<{ fired: number; failed: number }> {
+  const stats = { fired: 0, failed: 0 };
+  try {
+    const siteUrl = Deno.env.get("SITE_URL") ?? SITE_URL_FALLBACK;
+    console.log(
+      `[alerts] SITE_URL resolved to ${siteUrl} (${Deno.env.get("SITE_URL") ? "secret" : "fallback"})`,
+    );
+
+    const apiKey = Deno.env.get("RESEND_API_KEY");
+    if (!apiKey) {
+      console.error("[alerts] RESEND_API_KEY not set; skipping alerts (they stay armed)");
+      return stats;
+    }
+
+    // 'above' fires when bar_sell >= target (target <= bar_sell); mirrored for
+    // 'below'. barSell is our own sanity-checked number, safe to interpolate.
+    const { data, error } = await supabase
+      .from("price_alerts")
+      .select("id, email, target_price, direction, token")
+      .eq("confirmed", true)
+      .is("triggered_at", null)
+      .or(
+        `and(direction.eq.above,target_price.lte.${barSell}),and(direction.eq.below,target_price.gte.${barSell})`,
+      );
+
+    if (error) {
+      console.error("[alerts] failed to query armed alerts:", error.message);
+      return stats;
+    }
+
+    for (const alert of (data ?? []) as ArmedAlert[]) {
+      // Send first, stamp second: a send failure leaves the row armed to retry
+      // next cycle; a stamp failure risks one duplicate email, never a lost one.
+      try {
+        await sendEmail(apiKey, {
+          to: alert.email,
+          subject: "ราคาทองถึงเป้าหมายของคุณแล้ว - ราคาทองวันนี้",
+          html: alertEmailHtml({ alert, barSell, fetchedAt, siteUrl }),
+        });
+      } catch (err) {
+        stats.failed++;
+        console.error(
+          `[alerts] send failed for alert ${alert.id}:`,
+          err instanceof Error ? err.message : err,
+        );
+        continue;
+      }
+
+      const { error: stampError } = await supabase
+        .from("price_alerts")
+        .update({ triggered_at: new Date().toISOString() })
+        .eq("id", alert.id)
+        .is("triggered_at", null);
+
+      if (stampError) {
+        console.error(
+          `[alerts] sent but failed to stamp triggered_at for alert ${alert.id}:`,
+          stampError.message,
+        );
+      }
+      stats.fired++;
+    }
+  } catch (err) {
+    console.error("[alerts] alert block failed:", err instanceof Error ? err.message : err);
+  }
+  return stats;
+}
+
 Deno.serve(async (req) => {
   const authHeader = req.headers.get("authorization");
   const cronSecret = Deno.env.get("CRON_SECRET");
@@ -121,11 +308,19 @@ Deno.serve(async (req) => {
 
     if (upsertError) throw new Error(`upsert failed: ${upsertError.message}`);
 
+    const inserted = Boolean(count && count > 0);
+
+    // Only a genuinely new price can fire alerts; fireAlerts never throws.
+    const alertStats = inserted
+      ? await fireAlerts(supabase, barSell, fetchedAt)
+      : undefined;
+
     return new Response(
       JSON.stringify({
-        status: count && count > 0 ? "inserted" : "skipped",
-        reason: count && count > 0 ? undefined : "duplicate fetched_at",
+        status: inserted ? "inserted" : "skipped",
+        reason: inserted ? undefined : "duplicate fetched_at",
         fetchedAt: fetchedAtIso,
+        alerts: alertStats,
       }),
       { headers: { "content-type": "application/json" } },
     );
