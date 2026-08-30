@@ -10,6 +10,7 @@ import {
   type GoldPriceRow,
 } from "@/lib/gold-price-queries";
 import { PriceCard } from "@/components/PriceCard";
+import { GoldCalculator } from "@/components/GoldCalculator";
 import { IntradayTable } from "@/components/IntradayTable";
 import { PriceChart } from "@/components/PriceChart";
 import { FaqSection } from "@/components/FaqSection";
@@ -74,7 +75,10 @@ export default async function HomePage() {
       </header>
 
       {current ? (
-        <PriceCard latest={current} previous={previous ?? null} yesterday={yesterday} />
+        <>
+          <PriceCard latest={current} previous={previous ?? null} yesterday={yesterday} />
+          <GoldCalculator latest={current} />
+        </>
       ) : (
         <p className="rounded-2xl border border-dashed border-gray-300 p-5 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
           ยังไม่มีข้อมูลราคาทองในระบบ กรุณากลับมาตรวจสอบใหม่อีกครั้ง
