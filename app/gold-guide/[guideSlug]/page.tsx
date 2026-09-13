@@ -9,6 +9,8 @@ import {
   type GuidePageConfig,
 } from "@/lib/guide-pages";
 import { WEIGHT_PAGES, weightPagePath } from "@/lib/weight-pages";
+import { getLatestPrices, type GoldPriceRow } from "@/lib/gold-price-queries";
+import { formatThaiDateCompact, formatThaiPrice } from "@/lib/thai-date";
 import { JsonLd } from "@/components/JsonLd";
 import { PROFIT_CALC_PATH, SITE_URL } from "@/lib/site";
 
@@ -220,16 +222,24 @@ function GuideCrossLinks() {
   );
 }
 
+interface FaqItem {
+  question: string;
+  answer: string;
+}
+
 function GuideShell({
   config,
   h1,
   faqAnswer,
+  extraFaqItems = [],
   footerNote,
   children,
 }: {
   config: GuidePageConfig;
   h1: string;
   faqAnswer: string;
+  /** Extra Q&A pairs merged into the same FAQPage JSON-LD as the H1 question - keeps one combined block per page instead of two competing ones. */
+  extraFaqItems?: FaqItem[];
   footerNote: string;
   children: React.ReactNode;
 }) {
@@ -245,6 +255,11 @@ function GuideShell({
               name: h1.replace(/\?$/, ""),
               acceptedAnswer: { "@type": "Answer", text: faqAnswer },
             },
+            ...extraFaqItems.map((item) => ({
+              "@type": "Question",
+              name: item.question,
+              acceptedAnswer: { "@type": "Answer", text: item.answer },
+            })),
           ],
         }}
       />
@@ -283,12 +298,58 @@ function GuideShell({
 const KAMNET_ANSWER =
   "ค่ากำเหน็จคือค่าแรงและค่าฝีมือในการขึ้นรูปทองคำแท่งให้เป็นทองรูปพรรณ รวมถึงส่วนต่างกำไรของร้านทอง ตามท้องตลาดทั่วไปมักอยู่ราว 500-800 บาทต่อน้ำหนักทอง 1 บาท ขึ้นอยู่กับร้านและลวดลาย";
 
-function KamnetContent({ config }: { config: GuidePageConfig }) {
+const EXAMPLE_KAMNET_FEE = 600;
+
+const EXAMPLE_WEIGHTS: { label: string; fraction: number }[] = [
+  { label: "1 บาท", fraction: 1 },
+  { label: "2 สลึง", fraction: 0.5 },
+  { label: "1 สลึง", fraction: 0.25 },
+  { label: "ครึ่งสลึง", fraction: 0.125 },
+];
+
+const KAMNET_FAQ_ITEMS: FaqItem[] = [
+  {
+    question: "ค่ากำเหน็จทอง 1 บาท ประมาณเท่าไหร่",
+    answer: "ทั่วไป 500-800 บาท ลายพิเศษหรือแบรนด์อาจถึง 1,200 บาทขึ้นไป",
+  },
+  {
+    question: "ค่ากำเหน็จกับค่าบล็อกต่างกันอย่างไร",
+    answer:
+      "ค่ากำเหน็จคือค่าฝีมือทองรูปพรรณ ค่าบล็อกคือค่าขึ้นรูปทองแท่งขนาดเล็ก ถูกกว่ามาก",
+  },
+  {
+    question: "ต่อรองค่ากำเหน็จได้ไหม",
+    answer:
+      "บางร้านลดได้เล็กน้อยโดยเฉพาะซื้อหลายชิ้น แต่ราคาทองต่อรองไม่ได้เพราะอิงสมาคม",
+  },
+  {
+    question: "ทองครึ่งสลึงค่ากำเหน็จเท่าไหร่",
+    answer: "ส่วนใหญ่คิดเท่าทอง 1 บาท คือ 500-800 บาท",
+  },
+];
+
+async function loadLatestForKamnet(): Promise<GoldPriceRow | null> {
+  try {
+    const [latest] = await getLatestPrices(1);
+    return latest ?? null;
+  } catch (err) {
+    console.error(
+      "[gold-guide/kamnet] failed to load price data:",
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
+}
+
+async function KamnetContent({ config }: { config: GuidePageConfig }) {
+  const latest = await loadLatestForKamnet();
+
   return (
     <GuideShell
       config={config}
       h1="ค่ากำเหน็จทองคืออะไร?"
       faqAnswer={KAMNET_ANSWER}
+      extraFaqItems={KAMNET_FAQ_ITEMS}
       footerNote="ตัวเลขค่ากำเหน็จเป็นช่วงราคาที่พบทั่วไปในตลาด ไม่ใช่อัตราทางการ ค่ากำเหน็จจริงขึ้นอยู่กับร้านและชิ้นงาน ข้อมูลราคาทองอ้างอิงจากประกาศของสมาคมค้าทองคำ (goldtraders.or.th)"
     >
       <p className={guideParagraph}>
@@ -338,6 +399,121 @@ function KamnetContent({ config }: { config: GuidePageConfig }) {
         </Link>{" "}
         ซึ่งมีช่องกรอกค่ากำเหน็จโดยเฉพาะ
       </p>
+
+      {latest ? (
+        <>
+          <h2 className={guideHeading}>ตัวอย่างคำนวณค่ากำเหน็จด้วยราคาทองวันนี้</h2>
+          <p className={guideParagraph}>
+            สมมติร้านคิดค่ากำเหน็จ {formatThaiPrice(EXAMPLE_KAMNET_FEE)} บาท
+            ราคาทองรูปพรรณขายออกวันนี้{" "}
+            <span className={guideStrong}>
+              {formatThaiPrice(latest.ornamentSell)} บาท
+            </span>{" "}
+            ({formatThaiDateCompact(latest.fetchedAt)})
+          </p>
+          <div className="mt-1 overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-800">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-800 dark:text-gray-400">
+                  <th className="px-4 py-3 font-medium">น้ำหนัก</th>
+                  <th className="px-4 py-3 text-right font-medium">ราคาทอง</th>
+                  <th className="px-4 py-3 text-right font-medium">ค่ากำเหน็จ</th>
+                  <th className="px-4 py-3 text-right font-medium">ราคาที่จ่าย</th>
+                </tr>
+              </thead>
+              <tbody>
+                {EXAMPLE_WEIGHTS.map((w) => {
+                  const goldPrice = latest.ornamentSell * w.fraction;
+                  const totalPrice = goldPrice + EXAMPLE_KAMNET_FEE;
+                  return (
+                    <tr
+                      key={w.label}
+                      className="border-b border-gray-100 last:border-b-0 dark:border-gray-800"
+                    >
+                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                        {w.label}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-900 dark:text-gray-50">
+                        {formatThaiPrice(goldPrice)}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-900 dark:text-gray-50">
+                        {formatThaiPrice(EXAMPLE_KAMNET_FEE)}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-900 dark:text-gray-50">
+                        {formatThaiPrice(totalPrice)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className={guideParagraph}>
+            สังเกตว่าทองครึ่งสลึงจ่ายค่ากำเหน็จเท่ากับทอง 1 บาท
+            จึงเป็นสัดส่วนต้นทุนที่สูงกว่ามาก
+          </p>
+
+          <h2 className={guideHeading}>ขายทองคืน ได้ค่ากำเหน็จคืนไหม</h2>
+          <p className={guideParagraph}>
+            ไม่ได้คืน ค่ากำเหน็จเป็นค่าฝีมือที่จ่ายให้ร้านครั้งเดียวและไม่ได้กลับมา
+            เมื่อนำทองรูปพรรณไปขายคืน ร้านจะรับซื้อในราคา &ldquo;รูปพรรณ
+            รับซื้อ&rdquo; ซึ่งต่ำกว่าราคาขายออก
+            และร้านบางแห่งอาจหักค่าสึกหรอเพิ่ม
+          </p>
+          {(() => {
+            const total = latest.ornamentSell + EXAMPLE_KAMNET_FEE;
+            const loss = total - latest.ornamentBuy;
+            return (
+              <p className={guideParagraph}>
+                ตัวอย่างวันนี้: ซื้อทองรูปพรรณ 1 บาท จ่าย{" "}
+                {formatThaiPrice(latest.ornamentSell)} +{" "}
+                {formatThaiPrice(EXAMPLE_KAMNET_FEE)} ={" "}
+                <span className={guideStrong}>{formatThaiPrice(total)} บาท</span>{" "}
+                หากขายคืนวันเดียวกันได้ราคารับซื้อ{" "}
+                {formatThaiPrice(latest.ornamentBuy)} บาท ขาดทุนทันที{" "}
+                <span className={guideStrong}>{formatThaiPrice(loss)} บาท</span>{" "}
+                ทองรูปพรรณจึงเหมาะกับการสวมใส่มากกว่าการลงทุนระยะสั้น
+              </p>
+            );
+          })()}
+        </>
+      ) : (
+        <p className={guideParagraph}>
+          ยังไม่มีข้อมูลราคาทองในระบบสำหรับตัวอย่างคำนวณ
+        </p>
+      )}
+
+      <h2 className={guideHeading}>ทำไมแต่ละร้านคิดค่ากำเหน็จไม่เท่ากัน</h2>
+      <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+        <li>ลวดลายและความละเอียดของงาน</li>
+        <li>งานแบรนด์หรืองานดีไซน์</li>
+        <li>ต้นทุนช่างและทำเลของร้าน</li>
+        <li>งานสั่งทำพิเศษ</li>
+      </ul>
+      <p className={guideParagraph}>
+        ก่อนซื้อควรถามค่ากำเหน็จให้ชัดเจนและเทียบอย่างน้อย 2-3 ร้าน
+        โดยเฉพาะทองชิ้นเล็ก
+      </p>
+
+      <h2 className={guideHeading}>ทองคำแท่งมีค่ากำเหน็จไหม</h2>
+      <p className={guideParagraph}>
+        ทองคำแท่งขนาด 1 บาทขึ้นไปโดยทั่วไปไม่มีค่ากำเหน็จ
+        ซื้อขายตามราคาสมาคมค้าทองคำ ส่วนทองแท่งขนาดเล็ก (1 สลึง, 2 สลึง)
+        บางร้านคิด &ldquo;ค่าบล็อก&rdquo; เล็กน้อยประมาณ 50-200 บาท
+        นี่คือเหตุผลที่ผู้ที่ซื้อทองเพื่อลงทุนมักเลือกทองคำแท่ง
+      </p>
+
+      <h2 className={guideHeading}>คำถามที่พบบ่อย</h2>
+      <div className="divide-y divide-gray-200 dark:divide-gray-800">
+        {KAMNET_FAQ_ITEMS.map((item) => (
+          <div key={item.question} className="py-3 first:pt-0">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-50">
+              {item.question}
+            </h3>
+            <p className={`mt-1 ${guideParagraph}`}>{item.answer}</p>
+          </div>
+        ))}
+      </div>
     </GuideShell>
   );
 }
@@ -403,7 +579,7 @@ function SellDeductionContent({ config }: { config: GuidePageConfig }) {
 
 const CONTENT: Record<
   string,
-  (props: { config: GuidePageConfig }) => React.ReactNode
+  (props: { config: GuidePageConfig }) => React.ReactNode | Promise<React.ReactNode>
 > = {
   "ทอง-1-บาท-กี่กรัม": Gold1BahtGramsContent,
   "ค่ากำเหน็จทอง-คืออะไร": KamnetContent,
