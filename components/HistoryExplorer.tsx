@@ -4,15 +4,16 @@ import { useMemo, useState } from "react";
 import { PriceChart } from "@/components/PriceChart";
 import { DailyHistoryTable } from "@/components/DailyHistoryTable";
 import { formatThaiDateShort, formatThaiPrice } from "@/lib/thai-date";
+import { subtractDaysFromDateString, subtractYearsFromDateString } from "@/lib/bangkok";
 import { downsampleMonthly, downsampleWeekly } from "@/lib/downsample";
 import type { DailyGoldPriceRow } from "@/lib/gold-price-queries";
 
 const RANGES = [
-  { key: "30d", label: "30 วัน", days: 30 },
-  { key: "90d", label: "90 วัน", days: 90 },
-  { key: "1y", label: "1 ปี", days: 365 },
-  { key: "5y", label: "5 ปี", days: 1825 },
-  { key: "all", label: "ทั้งหมด", days: null },
+  { key: "30d", label: "30 วัน", unit: "days", amount: 30 },
+  { key: "90d", label: "90 วัน", unit: "days", amount: 90 },
+  { key: "1y", label: "1 ปี", unit: "years", amount: 1 },
+  { key: "5y", label: "5 ปี", unit: "years", amount: 5 },
+  { key: "all", label: "ทั้งหมด", unit: "all", amount: 0 },
 ] as const;
 
 type RangeKey = (typeof RANGES)[number]["key"];
@@ -31,13 +32,31 @@ const TABLE_LOAD_MORE_STEP = 30;
  * but ต่ำสุด/สูงสุด and the table both use the full, non-downsampled daily
  * rows for the selected range - downsampling only affects what gets drawn
  * as the line, never the reported stats or the table's data.
+ *
+ * Ranges filter by actual calendar date (rows on/after "today minus the
+ * period"), not by taking the last N rows - a row-count slice would span
+ * more than the nominal period whenever the underlying data has fewer than
+ * one row per calendar day somewhere in that window (true for years before
+ * GTA started publishing weekend prices), so "5 ปี" wouldn't mean 5 years.
+ * "today" is anchored to the latest available row, not wall-clock time, to
+ * stay consistent with what's actually in `data`.
  */
 export function HistoryExplorer({ data }: { data: DailyGoldPriceRow[] }) {
   const [rangeKey, setRangeKey] = useState<RangeKey>("30d");
   const [visibleCount, setVisibleCount] = useState(INITIAL_TABLE_ROWS);
   const range = RANGES.find((r) => r.key === rangeKey)!;
 
-  const sliced = range.days === null ? data : data.slice(-range.days);
+  const latestDateStr = data.length > 0 ? data[data.length - 1].priceDate : null;
+
+  const sliced = useMemo(() => {
+    if (range.unit === "all" || !latestDateStr) return data;
+    const cutoff =
+      range.unit === "years"
+        ? subtractYearsFromDateString(latestDateStr, range.amount)
+        : subtractDaysFromDateString(latestDateStr, range.amount);
+    return data.filter((row) => row.priceDate >= cutoff);
+  }, [data, range, latestDateStr]);
+
   const newestFirst = [...sliced].reverse();
 
   const chartRows = useMemo(() => {

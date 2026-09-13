@@ -25,3 +25,21 @@ export function toBangkokDateString(date: Date): string {
   const d = String(shifted.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
+
+/**
+ * "YYYY-MM-DD" exactly N calendar years before `dateStr` (same month/day) -
+ * for "N ปี" range cutoffs that must mean N calendar years, not a fixed
+ * N*365-day approximation (which drifts by 1-2 days per leap year crossed).
+ * Date.UTC normalizes Feb 29 in a non-leap target year by rolling into
+ * March 1, rather than producing an invalid date.
+ */
+export function subtractYearsFromDateString(dateStr: string, years: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y - years, m - 1, d)).toISOString().slice(0, 10);
+}
+
+/** "YYYY-MM-DD" exactly N calendar days before `dateStr`. */
+export function subtractDaysFromDateString(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d - days)).toISOString().slice(0, 10);
+}
