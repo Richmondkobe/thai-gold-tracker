@@ -196,24 +196,28 @@ export interface HistorySummaryStats {
 }
 
 /**
- * Powers the live summary paragraph on /history. High/low come from every
- * intraday update in the last 30 days (not daily closes), same reasoning as
- * yearly_gold_price_stats - a daily-close-only min/max would miss intraday
- * swings. The 30-day and 1-year baselines both use getDailyCloseOnOrBefore,
- * which already falls back to the nearest earlier trading day when the exact
- * date has no row (weekends/holidays).
+ * Powers the live summary paragraph on /history. High/low use the same 30
+ * daily closes as HistoryExplorer's default view (getDailyHistory(30)), so
+ * the summary and the chart/table always show identical ต่ำสุด/สูงสุด figures.
+ * Latest price/timestamp still come from the live intraday feed (a "close"
+ * doesn't exist yet for today, so today's own price can't come from there).
+ * The 30-day and 1-year baselines both use getDailyCloseOnOrBefore, which
+ * already falls back to the nearest earlier trading day when the exact date
+ * has no row (weekends/holidays).
  */
 export async function getHistorySummaryStats(): Promise<HistorySummaryStats | null> {
-  const intraday = await getIntradayHistory(30);
-  if (intraday.length === 0) return null;
+  const [latestRows, daily] = await Promise.all([getLatestPrices(1), getDailyHistory(30)]);
+  const latest = latestRows[0];
+  if (!latest || daily.length === 0) return null;
 
-  const latest = intraday[intraday.length - 1];
-  let high = intraday[0];
-  let low = intraday[0];
-  for (const row of intraday) {
+  let high = daily[0];
+  let low = daily[0];
+  for (const row of daily) {
     if (row.barSell > high.barSell) high = row;
     if (row.barSell < low.barSell) low = row;
   }
+  const highDate = new Date(high.priceDate);
+  const lowDate = new Date(low.priceDate);
 
   const todayStr = toBangkokDateString(latest.fetchedAt);
   const [y, m, d] = todayStr.split("-");
@@ -238,9 +242,9 @@ export async function getHistorySummaryStats(): Promise<HistorySummaryStats | nu
     thirtyDayChange,
     thirtyDayChangePercent,
     thirtyDayHigh: high.barSell,
-    thirtyDayHighDate: high.fetchedAt,
+    thirtyDayHighDate: highDate,
     thirtyDayLow: low.barSell,
-    thirtyDayLowDate: low.fetchedAt,
+    thirtyDayLowDate: lowDate,
     yearChange,
     yearChangePercent,
   };
