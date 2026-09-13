@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getDailyHistory } from "@/lib/gold-price-queries";
+import {
+  getDailyHistory,
+  getHistorySummaryStats,
+  type HistorySummaryStats,
+} from "@/lib/gold-price-queries";
 import { HistoryExplorer } from "@/components/HistoryExplorer";
+import { HistorySummary } from "@/components/HistorySummary";
 
 export const revalidate = 3600;
 
@@ -32,8 +37,20 @@ async function loadHistory() {
   }
 }
 
+async function loadSummary(): Promise<HistorySummaryStats | null> {
+  try {
+    return await getHistorySummaryStats();
+  } catch (err) {
+    console.error(
+      "[history] failed to load summary stats:",
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
+}
+
 export default async function HistoryPage() {
-  const history = await loadHistory();
+  const [history, summary] = await Promise.all([loadHistory(), loadSummary()]);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6">
@@ -45,6 +62,8 @@ export default async function HistoryPage() {
           ราคาปิดรายวันของทองคำแท่งและทองรูปพรรณ อ้างอิงประกาศสมาคมค้าทองคำ
         </p>
       </header>
+
+      <HistorySummary stats={summary} />
 
       {history.length > 0 ? (
         <HistoryExplorer data={history} />

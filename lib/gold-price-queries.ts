@@ -182,6 +182,70 @@ export async function getDailyHistory(days: number): Promise<DailyGoldPriceRow[]
   return rows.map(toDailyRow).reverse();
 }
 
+export interface HistorySummaryStats {
+  latestPrice: number;
+  latestFetchedAt: Date;
+  thirtyDayChange: number;
+  thirtyDayChangePercent: number;
+  thirtyDayHigh: number;
+  thirtyDayHighDate: Date;
+  thirtyDayLow: number;
+  thirtyDayLowDate: Date;
+  yearChange: number;
+  yearChangePercent: number;
+}
+
+/**
+ * Powers the live summary paragraph on /history. High/low come from every
+ * intraday update in the last 30 days (not daily closes), same reasoning as
+ * yearly_gold_price_stats - a daily-close-only min/max would miss intraday
+ * swings. The 30-day and 1-year baselines both use getDailyCloseOnOrBefore,
+ * which already falls back to the nearest earlier trading day when the exact
+ * date has no row (weekends/holidays).
+ */
+export async function getHistorySummaryStats(): Promise<HistorySummaryStats | null> {
+  const intraday = await getIntradayHistory(30);
+  if (intraday.length === 0) return null;
+
+  const latest = intraday[intraday.length - 1];
+  let high = intraday[0];
+  let low = intraday[0];
+  for (const row of intraday) {
+    if (row.barSell > high.barSell) high = row;
+    if (row.barSell < low.barSell) low = row;
+  }
+
+  const todayStr = toBangkokDateString(latest.fetchedAt);
+  const [y, m, d] = todayStr.split("-");
+  const thirtyDaysAgoStr = toBangkokDateString(addDays(latest.fetchedAt, -30));
+  const yearAgoStr = `${Number(y) - 1}-${m}-${d}`;
+
+  const [thirtyDayBaseline, yearBaseline] = await Promise.all([
+    getDailyCloseOnOrBefore(thirtyDaysAgoStr),
+    getDailyCloseOnOrBefore(yearAgoStr),
+  ]);
+
+  const thirtyDayChange = thirtyDayBaseline ? latest.barSell - thirtyDayBaseline.barSell : 0;
+  const thirtyDayChangePercent = thirtyDayBaseline
+    ? (thirtyDayChange / thirtyDayBaseline.barSell) * 100
+    : 0;
+  const yearChange = yearBaseline ? latest.barSell - yearBaseline.barSell : 0;
+  const yearChangePercent = yearBaseline ? (yearChange / yearBaseline.barSell) * 100 : 0;
+
+  return {
+    latestPrice: latest.barSell,
+    latestFetchedAt: latest.fetchedAt,
+    thirtyDayChange,
+    thirtyDayChangePercent,
+    thirtyDayHigh: high.barSell,
+    thirtyDayHighDate: high.fetchedAt,
+    thirtyDayLow: low.barSell,
+    thirtyDayLowDate: low.fetchedAt,
+    yearChange,
+    yearChangePercent,
+  };
+}
+
 export interface YearlyGoldPriceStat {
   /** Gregorian year - convert with toBuddhistYear() for display. */
   year: number;

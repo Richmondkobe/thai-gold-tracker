@@ -73,6 +73,16 @@ export function formatThaiTime(date: Date): string {
   return `${timeFormatter.format(date)} น.`;
 }
 
+/** e.g. "12 ก.ย. 2569" - no "พ.ศ." label (unlike formatThaiDateShort), for inline summary sentences. */
+export function formatThaiDateCompact(date: Date): string {
+  return shortDateFormatter.format(date);
+}
+
+/** e.g. "12 ก.ย. 2569 09:30" */
+export function formatThaiDateTimeCompact(date: Date): string {
+  return `${shortDateFormatter.format(date)} ${timeFormatter.format(date)}`;
+}
+
 /** e.g. "64,150.00" */
 export function formatThaiPrice(value: number): string {
   return numberFormatter.format(value);
