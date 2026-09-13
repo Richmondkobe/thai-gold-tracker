@@ -182,6 +182,20 @@ export async function getDailyHistory(days: number): Promise<DailyGoldPriceRow[]
   return rows.map(toDailyRow).reverse();
 }
 
+/** Daily closing prices for one Gregorian calendar year, oldest first. At most ~366 rows - no pagination ceiling needed. */
+export async function getDailyHistoryForYear(gregorianYear: number): Promise<DailyGoldPriceRow[]> {
+  const supabase = createPublicClient();
+  const { data, error } = await supabase
+    .from("daily_gold_prices")
+    .select("price_date, fetched_at, bar_buy, bar_sell, ornament_buy, ornament_sell")
+    .gte("price_date", `${gregorianYear}-01-01`)
+    .lte("price_date", `${gregorianYear}-12-31`)
+    .order("price_date", { ascending: true });
+
+  if (error) throw new Error(`getDailyHistoryForYear failed: ${error.message}`);
+  return (data ?? []).map(toDailyRow);
+}
+
 export interface HistorySummaryStats {
   latestPrice: number;
   latestFetchedAt: Date;

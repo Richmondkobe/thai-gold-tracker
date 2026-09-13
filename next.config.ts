@@ -19,6 +19,10 @@ const nextConfig: NextConfig = {
         destination: "/gold-guide/:guideSlug",
       },
       {
+        source: `/${encodeURIComponent("ราคาทองปี")}/:year`,
+        destination: "/gold-price-year/:year",
+      },
+      {
         source: `/${encodeURIComponent("คำนวณกำไรขาดทุนทอง")}`,
         destination: "/gold-profit",
       },
@@ -50,6 +54,11 @@ const nextConfig: NextConfig = {
       {
         source: "/gold-guide/:guideSlug",
         destination: "/ความรู้/:guideSlug",
+        permanent: true,
+      },
+      {
+        source: "/gold-price-year/:year",
+        destination: "/ราคาทองปี/:year",
         permanent: true,
       },
       {

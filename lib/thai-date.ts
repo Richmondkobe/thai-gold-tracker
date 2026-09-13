@@ -109,3 +109,30 @@ export function formatThaiPercent(value: number): string {
 export function toBuddhistYear(gregorianYear: number): number {
   return gregorianYear + 543;
 }
+
+/** "เพิ่มขึ้น" / "ลดลง" / "ไม่เปลี่ยนแปลง", shared by every narrative price-change sentence. */
+export function changeWord(value: number): string {
+  if (value > 0) return "เพิ่มขึ้น";
+  if (value < 0) return "ลดลง";
+  return "ไม่เปลี่ยนแปลง";
+}
+
+const THAI_MONTH_NAMES = [
+  "มกราคม",
+  "กุมภาพันธ์",
+  "มีนาคม",
+  "เมษายน",
+  "พฤษภาคม",
+  "มิถุนายน",
+  "กรกฎาคม",
+  "สิงหาคม",
+  "กันยายน",
+  "ตุลาคม",
+  "พฤศจิกายน",
+  "ธันวาคม",
+];
+
+/** Thai month name from a 1-12 month number, e.g. 9 -> "กันยายน". */
+export function formatThaiMonthName(month: number): string {
+  return THAI_MONTH_NAMES[month - 1] ?? "";
+}

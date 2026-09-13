@@ -3,6 +3,7 @@ import { PROFIT_CALC_PATH, SITE_URL } from "@/lib/site";
 import { WEIGHT_PAGES, weightPagePath } from "@/lib/weight-pages";
 import { GUIDE_PAGES, guidePagePath } from "@/lib/guide-pages";
 import { TRUST_PAGES } from "@/lib/trust-pages";
+import { CURRENT_YEAR_BE, YEAR_PAGES, yearPagePath } from "@/lib/year-pages";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
@@ -19,6 +20,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
     lastModified,
     changeFrequency: "monthly",
     priority: 0.6,
+  }));
+
+  // The current year's page still updates daily; past years are finalized
+  // and effectively never change once the year is over.
+  const yearPages: MetadataRoute.Sitemap = YEAR_PAGES.map((p) => ({
+    url: `${SITE_URL}${encodeURI(yearPagePath(p.buddhistYear))}`,
+    lastModified,
+    changeFrequency: p.buddhistYear === CURRENT_YEAR_BE ? "daily" : "yearly",
+    priority: p.buddhistYear === CURRENT_YEAR_BE ? 0.6 : 0.4,
   }));
 
   return [
@@ -43,6 +53,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     ...weightPages,
     ...guidePages,
+    ...yearPages,
     {
       url: `${SITE_URL}${encodeURI(PROFIT_CALC_PATH)}`,
       lastModified,

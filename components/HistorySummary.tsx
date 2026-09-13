@@ -1,16 +1,11 @@
 import {
+  changeWord,
   formatThaiDateCompact,
   formatThaiDateTimeCompact,
   formatThaiPercent,
   formatThaiWholeNumber,
 } from "@/lib/thai-date";
 import type { HistorySummaryStats } from "@/lib/gold-price-queries";
-
-function changeWord(value: number): string {
-  if (value > 0) return "เพิ่มขึ้น";
-  if (value < 0) return "ลดลง";
-  return "ไม่เปลี่ยนแปลง";
-}
 
 /** Pure server-rendered sentence - real text in the initial HTML, not fetched client-side. */
 export function HistorySummary({ stats }: { stats: HistorySummaryStats | null }) {

@@ -7,6 +7,7 @@ import {
 } from "@/lib/gold-price-queries";
 import { HistoryExplorer } from "@/components/HistoryExplorer";
 import { HistorySummary } from "@/components/HistorySummary";
+import { YEAR_PAGES, yearPagePath } from "@/lib/year-pages";
 
 export const revalidate = 3600;
 
@@ -75,6 +76,22 @@ export default async function HistoryPage() {
           ยังไม่มีข้อมูลราคาทองย้อนหลังในระบบ กรุณากลับมาตรวจสอบใหม่อีกครั้ง
         </p>
       )}
+
+      <section>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">ราคาทองรายปี</h2>
+        <ul className="mt-3 flex flex-wrap gap-2">
+          {[...YEAR_PAGES].reverse().map((p) => (
+            <li key={p.buddhistYear}>
+              <Link
+                href={yearPagePath(p.buddhistYear)}
+                className="inline-block rounded-full border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:border-amber-500 hover:text-amber-600 dark:border-gray-700 dark:text-gray-300"
+              >
+                ราคาทองปี {p.buddhistYear}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <p className="text-sm text-gray-600 dark:text-gray-400">
         ต้องการดูกราฟแนวโน้มราคาทองระยะยาว ตั้งแต่ 1 เดือนถึง 10 ปี?{" "}
