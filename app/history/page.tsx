@@ -10,9 +10,9 @@ import { HistorySummary } from "@/components/HistorySummary";
 
 export const revalidate = 3600;
 
-const TITLE = "ราคาทองย้อนหลัง ดูราคาทองคำแท่งและทองรูปพรรณย้อนหลัง 30/90/365 วัน";
+const TITLE = "ราคาทองย้อนหลัง ดูราคาทองคำแท่งและทองรูปพรรณย้อนหลัง 30 วันถึง 10 ปี";
 const DESCRIPTION =
-  "ราคาทองย้อนหลังรายวัน ทั้งทองคำแท่งและทองรูปพรรณ พร้อมกราฟราคาทอง เลือกดูย้อนหลังได้ 30 วัน 90 วัน หรือ 1 ปี อ้างอิงประกาศสมาคมค้าทองคำ";
+  "ราคาทองย้อนหลังรายวัน ทั้งทองคำแท่งและทองรูปพรรณ พร้อมกราฟราคาทอง เลือกดูย้อนหลังได้ 30 วัน 90 วัน 1 ปี 5 ปี หรือทั้งหมด อ้างอิงประกาศสมาคมค้าทองคำ";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -25,9 +25,12 @@ export const metadata: Metadata = {
   },
 };
 
+// Fetches the full history (currently ~3,300 rows, growing by ~365/year) so
+// the client-side range toggle can offer 5 ปี / ทั้งหมด, not just 30/90/365
+// days. getDailyHistory paginates past PostgREST's ~1000-row response cap.
 async function loadHistory() {
   try {
-    return await getDailyHistory(365);
+    return await getDailyHistory(36_500);
   } catch (err) {
     console.error(
       "[history] failed to load price data:",

@@ -12,10 +12,15 @@ export function PriceChart({
   rows,
   title,
   metric = "barSell",
+  hideCaption = false,
 }: {
   rows: ChartablePriceRow[];
   title: string;
   metric?: "barSell" | "ornamentSell";
+  /** Skip the built-in ต่ำสุด/สูงสุด caption - for callers (e.g. HistoryExplorer)
+   *  that render their own, computed from a different row set (e.g. true daily
+   *  low/high for a range, when `rows` itself has been downsampled for the plot). */
+  hideCaption?: boolean;
 }) {
   if (rows.length < 2) {
     return (
@@ -74,10 +79,12 @@ export function PriceChart({
           {formatThaiDateShort(last.fetchedAt)}
         </text>
       </svg>
-      <figcaption className="mt-2 flex justify-between text-xs text-gray-500 dark:text-gray-400">
-        <span>ต่ำสุด {formatThaiPrice(min)}</span>
-        <span>สูงสุด {formatThaiPrice(max)}</span>
-      </figcaption>
+      {!hideCaption && (
+        <figcaption className="mt-2 flex justify-between text-xs text-gray-500 dark:text-gray-400">
+          <span>ต่ำสุด {formatThaiPrice(min)}</span>
+          <span>สูงสุด {formatThaiPrice(max)}</span>
+        </figcaption>
+      )}
     </figure>
   );
 }
