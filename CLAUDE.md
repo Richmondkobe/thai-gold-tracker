@@ -25,12 +25,22 @@ Rank on Google Thailand for **ราคาทองวันนี้** (gold pr
 ## Cron schedule (Supabase `pg_cron`)
 
 One `cron.schedule(...)` job, `fetch-gold-prices` (run manually via the SQL editor,
-not committed — it embeds `CRON_SECRET`): `"*/30 * * * *"`, every 30 minutes around
-the clock. Off-hours runs are cheap no-ops — the Edge Function's unchanged-price
-check skips the insert, and only a genuinely new announcement fires price alerts.
-It calls `net.http_post()` against the deployed `fetch-prices` Edge Function.
-(Verified against live `cron.job` 2026-08-30; an earlier two-job 08:00-19:00
-Bangkok schedule described here previously has been replaced.)
+not committed — it embeds `CRON_SECRET`): `"*/2 * * * *"`, every 2 minutes around
+the clock (jobid 2). It calls `net.http_post()` against the deployed `fetch-prices`
+Edge Function. Most runs are cheap no-ops: when the four prices match the latest row
+nothing is inserted and no alerts fire; the only write is a `last_announced_at` stamp
+when GTA has re-announced the same prices at a newer time (see "Official announcement
+time" below). Only a genuinely new price inserts a row and fires price alerts.
+(Verified against live `cron.job` 2026-11-11, when it was changed from `*/30` with
+`cron.alter_job`.)
+
+To change the schedule without retyping the secret:
+`select cron.alter_job(job_id := (select jobid from cron.job where jobname = 'fetch-gold-prices'), schedule := '...');`
+
+Things that follow from the 2-minute cadence: `cron.job_run_details` gains ~720 rows a
+day and is never pruned automatically; and the public pages are ISR (`/` revalidates
+every 300s), so a new price can take up to ~2 + 5 minutes to appear on the site even
+though the alert email goes out as soon as the fetcher sees it.
 
 ## Price alerts
 
