@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatThaiDateLong, formatThaiPrice } from "@/lib/thai-date";
-import { getLatestPrices, type GoldPriceRow } from "@/lib/gold-price-queries";
+import { getLatestPrices, type LatestGoldPriceRow } from "@/lib/gold-price-queries";
 import {
   WEIGHT_PAGES,
   getWeightPageBySlug,
@@ -52,7 +52,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-async function loadLatest(): Promise<GoldPriceRow | null> {
+async function loadLatest(): Promise<LatestGoldPriceRow | null> {
   try {
     const [latest] = await getLatestPrices(1);
     return latest ?? null;
@@ -132,7 +132,7 @@ export default async function WeightPage({ params }: Props) {
               โดยทั่วไปร้านทองจะคิดราคารับซื้อคืนทองรูปพรรณจากราคาทองคำแท่งหักค่าหลอม/ค่าสึกหรอ
               จำนวนเงินที่ได้รับจริงจึงมักสูงกว่ามูลค่าที่แสดงไว้
             </p>
-            <MarketStatusLine fetchedAt={latest.fetchedAt} />
+            <MarketStatusLine announcedAt={latest.announcedAt} />
           </section>
 
           <GoldCalculator latest={latest} initialBahtWeight={bahtWeight} />

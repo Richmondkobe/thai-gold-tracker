@@ -7,26 +7,34 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-async function confirmAlert(token: string | undefined) {
-  if (!token) return "invalid" as const;
+type ConfirmResult =
+  | { status: "invalid" }
+  | { status: "success" | "already"; alertType: "target" | "every_change" };
+
+// Works the same for both alert types - confirmation is purely token-based;
+// alert_type is only read to word the success message correctly.
+async function confirmAlert(token: string | undefined): Promise<ConfirmResult> {
+  if (!token) return { status: "invalid" };
 
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("price_alerts")
-    .select("id, confirmed")
+    .select("id, confirmed, alert_type")
     .eq("token", token)
     .maybeSingle();
 
-  if (error || !data) return "invalid" as const;
-  if (data.confirmed) return "already" as const;
+  if (error || !data) return { status: "invalid" };
+
+  const alertType = data.alert_type === "every_change" ? "every_change" : "target";
+  if (data.confirmed) return { status: "already", alertType };
 
   const { error: updateError } = await supabase
     .from("price_alerts")
     .update({ confirmed: true })
     .eq("id", data.id);
 
-  if (updateError) return "invalid" as const;
-  return "success" as const;
+  if (updateError) return { status: "invalid" };
+  return { status: "success", alertType };
 }
 
 export default async function ConfirmAlertPage(props: PageProps<"/alerts/confirm">) {
@@ -35,13 +43,15 @@ export default async function ConfirmAlertPage(props: PageProps<"/alerts/confirm
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-4 px-4 py-16 text-center">
-      {result === "success" || result === "already" ? (
+      {result.status !== "invalid" ? (
         <>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">
             ยืนยันการแจ้งเตือนเรียบร้อยแล้ว
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            เราจะส่งอีเมลแจ้งเตือนเมื่อราคาทองถึงเป้าหมายที่คุณตั้งไว้
+            {result.alertType === "every_change"
+              ? "เราจะส่งอีเมลแจ้งเตือนทุกครั้งที่สมาคมค้าทองคำประกาศราคาทองใหม่ คุณยกเลิกได้ทุกเมื่อจากลิงก์ท้ายอีเมล"
+              : "เราจะส่งอีเมลแจ้งเตือนเมื่อราคาทองถึงเป้าหมายที่คุณตั้งไว้"}
           </p>
         </>
       ) : (

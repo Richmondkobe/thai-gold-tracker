@@ -13,7 +13,7 @@ export function HistorySummary({ stats }: { stats: HistorySummaryStats | null })
 
   return (
     <p className="text-sm text-gray-600 dark:text-gray-400">
-      ราคาทองคำแท่งล่าสุด ({formatThaiDateCompact(stats.latestFetchedAt)}) ขายออก{" "}
+      ราคาทองคำแท่งล่าสุด ({formatThaiDateCompact(stats.latestAnnouncedAt)}) ขายออก{" "}
       {formatThaiWholeNumber(stats.latestPrice)} บาท {changeWord(stats.thirtyDayChange)}{" "}
       {formatThaiWholeNumber(Math.abs(stats.thirtyDayChange))} บาท (
       {formatThaiPercent(stats.thirtyDayChangePercent)}) จาก 30 วันก่อน สูงสุดในรอบ 30 วัน{" "}
@@ -22,7 +22,7 @@ export function HistorySummary({ stats }: { stats: HistorySummaryStats | null })
       {formatThaiDateCompact(stats.thirtyDayLowDate)}) เมื่อเทียบกับปีที่แล้ว{" "}
       {changeWord(stats.yearChange)} {formatThaiWholeNumber(Math.abs(stats.yearChange))} บาท (
       {formatThaiPercent(stats.yearChangePercent)}) อัปเดตล่าสุด:{" "}
-      {formatThaiDateTimeCompact(stats.latestFetchedAt)}
+      {formatThaiDateTimeCompact(stats.latestAnnouncedAt)}
     </p>
   );
 }

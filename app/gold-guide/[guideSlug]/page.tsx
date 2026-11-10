@@ -9,7 +9,7 @@ import {
   type GuidePageConfig,
 } from "@/lib/guide-pages";
 import { WEIGHT_PAGES, weightPagePath } from "@/lib/weight-pages";
-import { getLatestPrices, type GoldPriceRow } from "@/lib/gold-price-queries";
+import { getLatestPrices, type LatestGoldPriceRow } from "@/lib/gold-price-queries";
 import { formatThaiDateCompact, formatThaiPrice } from "@/lib/thai-date";
 import { JsonLd } from "@/components/JsonLd";
 import { PROFIT_CALC_PATH, SITE_URL } from "@/lib/site";
@@ -328,7 +328,7 @@ const KAMNET_FAQ_ITEMS: FaqItem[] = [
   },
 ];
 
-async function loadLatestForKamnet(): Promise<GoldPriceRow | null> {
+async function loadLatestForKamnet(): Promise<LatestGoldPriceRow | null> {
   try {
     const [latest] = await getLatestPrices(1);
     return latest ?? null;
@@ -409,7 +409,7 @@ async function KamnetContent({ config }: { config: GuidePageConfig }) {
             <span className={guideStrong}>
               {formatThaiPrice(latest.ornamentSell)} บาท
             </span>{" "}
-            ({formatThaiDateCompact(latest.fetchedAt)})
+            ({formatThaiDateCompact(latest.announcedAt)})
           </p>
           <div className="mt-1 overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-800">
             <table className="w-full text-sm">

@@ -1,11 +1,26 @@
-import { formatThaiPrice, formatThaiTime } from "@/lib/thai-date";
-import type { GoldPriceRow } from "@/lib/gold-price-queries";
+import { formatThaiPrice, formatThaiTime, getMarketStatus } from "@/lib/thai-date";
+import type { GoldPriceRow, LatestGoldPriceRow } from "@/lib/gold-price-queries";
 
-export function IntradayTable({ rows }: { rows: GoldPriceRow[] }) {
+/**
+ * One row per price CHANGE today. `latest` is only used for the empty state:
+ * when GTA has announced today but repeated the previous day's prices, there
+ * is no row for today (unchanged announcements don't create one), so say that
+ * instead of claiming there has been no announcement.
+ */
+export function IntradayTable({
+  rows,
+  latest = null,
+}: {
+  rows: GoldPriceRow[];
+  latest?: LatestGoldPriceRow | null;
+}) {
   if (rows.length === 0) {
+    const reannouncedToday = latest !== null && getMarketStatus(latest.announcedAt).isToday;
     return (
       <p className="text-sm text-gray-500 dark:text-gray-400">
-        ยังไม่มีประกาศราคาสำหรับวันนี้
+        {reannouncedToday
+          ? `ราคาทองวันนี้ยังไม่เปลี่ยนแปลงจากประกาศครั้งก่อน (ประกาศล่าสุดเวลา ${formatThaiTime(latest.announcedAt)})`
+          : "ยังไม่มีประกาศราคาสำหรับวันนี้"}
       </p>
     );
   }

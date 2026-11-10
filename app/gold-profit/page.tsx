@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { formatThaiDateLong } from "@/lib/thai-date";
 import { toBangkokDateString } from "@/lib/bangkok";
-import { getLatestPrices, type GoldPriceRow } from "@/lib/gold-price-queries";
+import { getLatestPrices, type LatestGoldPriceRow } from "@/lib/gold-price-queries";
 import { WEIGHT_PAGES, weightPagePath } from "@/lib/weight-pages";
 import { GUIDE_PAGES, guidePagePath } from "@/lib/guide-pages";
 import { ProfitCalculator } from "@/components/ProfitCalculator";
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   },
 };
 
-async function loadLatest(): Promise<GoldPriceRow | null> {
+async function loadLatest(): Promise<LatestGoldPriceRow | null> {
   try {
     const [latest] = await getLatestPrices(1);
     return latest ?? null;
@@ -85,7 +85,7 @@ export default async function GoldProfitPage() {
       {latest ? (
         <>
           <ProfitCalculator latest={latest} todayBangkok={todayBangkok} />
-          <MarketStatusLine fetchedAt={latest.fetchedAt} />
+          <MarketStatusLine announcedAt={latest.announcedAt} />
         </>
       ) : (
         <p className="rounded-2xl border border-dashed border-gray-300 p-5 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">

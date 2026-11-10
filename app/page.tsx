@@ -8,6 +8,7 @@ import {
   getYesterdayClose,
   type DailyGoldPriceRow,
   type GoldPriceRow,
+  type LatestGoldPriceRow,
 } from "@/lib/gold-price-queries";
 import { PriceCard } from "@/components/PriceCard";
 import { GoldCalculator } from "@/components/GoldCalculator";
@@ -37,7 +38,7 @@ export const metadata: Metadata = {
 };
 
 interface HomeData {
-  latest: GoldPriceRow[];
+  latest: LatestGoldPriceRow[];
   intraday: GoldPriceRow[];
   yesterday: DailyGoldPriceRow | null;
   history: DailyGoldPriceRow[];
@@ -114,7 +115,7 @@ export default async function HomePage() {
           ราคาทองระหว่างวันนี้
         </h2>
         <div className="mt-3">
-          <IntradayTable rows={intraday} />
+          <IntradayTable rows={intraday} latest={current ?? null} />
         </div>
       </section>
 

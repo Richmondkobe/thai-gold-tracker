@@ -1,7 +1,11 @@
 import { formatThaiPrice } from "@/lib/thai-date";
 import { MarketStatusLine } from "@/components/MarketStatusLine";
 import { ChangeIndicator } from "@/components/ChangeIndicator";
-import type { DailyGoldPriceRow, GoldPriceRow } from "@/lib/gold-price-queries";
+import type {
+  DailyGoldPriceRow,
+  GoldPriceRow,
+  LatestGoldPriceRow,
+} from "@/lib/gold-price-queries";
 
 export function PriceCard({
   latest,
@@ -9,7 +13,7 @@ export function PriceCard({
   yesterday,
   emphasis = "bar",
 }: {
-  latest: GoldPriceRow;
+  latest: LatestGoldPriceRow;
   previous: GoldPriceRow | null;
   yesterday: DailyGoldPriceRow | null;
   /** Which price headlines the card (the rest are always shown below regardless). */
@@ -59,7 +63,7 @@ export function PriceCard({
         <PriceCell label="ทองรูปพรรณ ขายออก" value={latest.ornamentSell} />
       </dl>
 
-      <MarketStatusLine fetchedAt={latest.fetchedAt} />
+      <MarketStatusLine announcedAt={latest.announcedAt} />
     </section>
   );
 }

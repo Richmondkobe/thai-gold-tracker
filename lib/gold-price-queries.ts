@@ -9,6 +9,18 @@ export interface GoldPriceRow {
   ornamentSell: number;
 }
 
+/** The current price, as returned by getLatestPrices. */
+export interface LatestGoldPriceRow extends GoldPriceRow {
+  /**
+   * Time of the most recent official GTA announcement carrying this price -
+   * the "อัปเดตล่าสุด" time to show users. Equals fetchedAt unless GTA has since
+   * re-announced the same prices (gold_prices.last_announced_at, migration
+   * 0008). Use fetchedAt, not this, for anything about when the price CHANGED
+   * (intraday table, charts, change calculations).
+   */
+  announcedAt: Date;
+}
+
 export interface DailyGoldPriceRow {
   priceDate: string;
   fetchedAt: Date;
@@ -47,6 +59,18 @@ function toRow(row: GoldPriceQueryRow): GoldPriceRow {
   };
 }
 
+function toLatestRow(
+  row: GoldPriceQueryRow & { last_announced_at: string | null },
+): LatestGoldPriceRow {
+  const base = toRow(row);
+  const reannouncedAt = row.last_announced_at ? new Date(row.last_announced_at) : null;
+  return {
+    ...base,
+    // Never earlier than the price's own timestamp, whatever the column holds.
+    announcedAt: reannouncedAt && reannouncedAt > base.fetchedAt ? reannouncedAt : base.fetchedAt,
+  };
+}
+
 function toDailyRow(row: DailyGoldPriceQueryRow): DailyGoldPriceRow {
   return { priceDate: row.price_date, ...toRow(row) };
 }
@@ -81,16 +105,16 @@ async function fetchAllRows<T>(
 }
 
 /** Most recent rows first (index 0 = latest). Used for the price card and its "vs previous update" delta. */
-export async function getLatestPrices(limit = 2): Promise<GoldPriceRow[]> {
+export async function getLatestPrices(limit = 2): Promise<LatestGoldPriceRow[]> {
   const supabase = createPublicClient();
   const { data, error } = await supabase
     .from("gold_prices")
-    .select("fetched_at, bar_buy, bar_sell, ornament_buy, ornament_sell")
+    .select("fetched_at, last_announced_at, bar_buy, bar_sell, ornament_buy, ornament_sell")
     .order("fetched_at", { ascending: false })
     .limit(limit);
 
   if (error) throw new Error(`getLatestPrices failed: ${error.message}`);
-  return (data ?? []).map(toRow);
+  return (data ?? []).map(toLatestRow);
 }
 
 /** All of today's updates (Asia/Bangkok), oldest first, for the intraday table. */
@@ -198,7 +222,8 @@ export async function getDailyHistoryForYear(gregorianYear: number): Promise<Dai
 
 export interface HistorySummaryStats {
   latestPrice: number;
-  latestFetchedAt: Date;
+  /** Latest official announcement time for latestPrice (see LatestGoldPriceRow.announcedAt). */
+  latestAnnouncedAt: Date;
   thirtyDayChange: number;
   thirtyDayChangePercent: number;
   thirtyDayHigh: number;
@@ -233,9 +258,9 @@ export async function getHistorySummaryStats(): Promise<HistorySummaryStats | nu
   const highDate = new Date(high.priceDate);
   const lowDate = new Date(low.priceDate);
 
-  const todayStr = toBangkokDateString(latest.fetchedAt);
+  const todayStr = toBangkokDateString(latest.announcedAt);
   const [y, m, d] = todayStr.split("-");
-  const thirtyDaysAgoStr = toBangkokDateString(addDays(latest.fetchedAt, -30));
+  const thirtyDaysAgoStr = toBangkokDateString(addDays(latest.announcedAt, -30));
   const yearAgoStr = `${Number(y) - 1}-${m}-${d}`;
 
   const [thirtyDayBaseline, yearBaseline] = await Promise.all([
@@ -252,7 +277,7 @@ export async function getHistorySummaryStats(): Promise<HistorySummaryStats | nu
 
   return {
     latestPrice: latest.barSell,
-    latestFetchedAt: latest.fetchedAt,
+    latestAnnouncedAt: latest.announcedAt,
     thirtyDayChange,
     thirtyDayChangePercent,
     thirtyDayHigh: high.barSell,

@@ -37,11 +37,45 @@ Bangkok schedule described here previously has been replaced.)
 Email signup on the homepage (`components/PriceAlertSignup.tsx`) -> `POST /api/alerts` ->
 Resend confirmation email -> `/alerts/confirm?token=` (auto-confirms on load, safe/idempotent)
 or `/alerts/unsubscribe?token=` (requires a button click - deletion is destructive, so it's
-a Server Action, not a GET-triggered side effect). `price_alerts` holds email PII: RLS is
-fully locked (no anon/authenticated policies at all), every read/write goes through
+a Server Action, not a GET-triggered side effect). Confirm and unsubscribe are purely
+token-based, so they work identically for both alert types. `price_alerts` holds email PII:
+RLS is fully locked (no anon/authenticated policies at all), every read/write goes through
 `lib/supabase/admin.ts` server-side. Sending domain `thaigoldtracker.com` must be
 verified in Resend before this works. No rate-limiting/abuse protection exists yet
 (anyone can submit any email address) - add if this becomes a problem.
+
+Two alert types (`price_alerts.alert_type`, migration 0007):
+
+- **`target`** (the default; all pre-0007 rows) - one-shot. Fires when ทองคำแท่ง ขายออก
+  crosses `target_price` in `direction`, then `triggered_at` is stamped and it never
+  fires again.
+- **`every_change`** ("ทุกครั้งที่ราคาเปลี่ยน") - recurring. Emailed on every genuinely new
+  price row until the user unsubscribes. `target_price`/`direction` are null (a check
+  constraint enforces target-needs-both / every_change-has-neither) and `triggered_at`
+  is never stamped. One per email address: a partial unique index on `lower(email)`
+  backs the API's check. A repeat signup is rejected (409) if already confirmed; if the
+  earlier one was never confirmed, the confirmation email is re-sent instead.
+
+Sending happens in the `fetch-prices` Edge Function, only after a new row is actually
+inserted, and can never fail the insert (`fireAlerts` never throws). Order matters
+because of Resend's daily cap: **target alerts are sent first** (individually), then
+every_change emails via Resend's batch endpoint (one request per 100 recipients, each
+person still gets their own email). On any Resend 429 / quota error the function stops
+sending for that run and logs `RESEND QUOTA/RATE LIMIT HIT` - unsent target alerts stay
+armed for the next price change, unsent every_change emails are skipped. Watch the
+volume: every_change costs (subscribers x price changes per day) emails, and GTA can
+announce 10-30+ changes on a volatile day, so the free plan's cap is reached quickly.
+
+## Official announcement time (`last_announced_at`)
+
+GTA sometimes re-announces identical prices. We never insert a row for that (it would
+add a zero-change line to the intraday table and zero out "เทียบกับประกาศก่อนหน้า"), but the
+fetcher stamps the newer `asTime` onto the existing latest row as
+`gold_prices.last_announced_at` (migration 0008). `fetched_at` keeps meaning "when this
+price took effect" and still drives the intraday table, charts, daily closes and every
+change calculation. Anything that shows a "last updated" time must use
+`LatestGoldPriceRow.announcedAt` from `getLatestPrices()` (= `last_announced_at ??
+fetched_at`), never `fetchedAt`. The same logic is mirrored in `lib/gold-price-store.ts`.
 
 ## Explicitly out of scope (v2)
 
