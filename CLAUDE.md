@@ -42,9 +42,8 @@ Things that follow from the 2-minute cadence:
 
 - `cron.job_run_details` gains ~720 rows a day and pg_cron never prunes it. A second
   job, `prune-cron-run-details` (`17 20 * * *` UTC = 03:17 Bangkok), deletes rows older
-  than 7 days. Its SQL was handed to Richmond on 2026-11-11 to run in the SQL editor;
-  it has not been verified from this side - check with
-  `select jobname, schedule, active from cron.job;` before relying on it.
+  than 7 days. Created with `cron.schedule(...)` in the SQL editor and verified
+  against live `cron.job` on 2026-11-11 (both jobs listed and active).
 - The public pages are ISR. The homepage revalidates every 60s (the other price pages
   stay at 300s: every regeneration is an ISR write, and only `/` is worth spending
   them on). ISR serves the stale page to the first visitor after expiry, so a new
