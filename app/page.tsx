@@ -18,9 +18,14 @@ import { IntradayTable } from "@/components/IntradayTable";
 import { PriceChart } from "@/components/PriceChart";
 import { FaqSection } from "@/components/FaqSection";
 import { PriceAlertSignup } from "@/components/PriceAlertSignup";
+import { PushNotificationToggle } from "@/components/PushNotificationToggle";
 import { homeFaqItems } from "@/lib/faq-content";
 
-export const revalidate = 300;
+// 60s so a new announcement shows up about a minute after the fetcher stores
+// it (the fetcher itself polls every 2 minutes - see CLAUDE.md "Cron schedule").
+// Only the homepage is this aggressive: every regeneration is an ISR write,
+// and the other price pages stay at 300s to keep well inside Vercel's free tier.
+export const revalidate = 60;
 
 const TITLE = "ราคาทองวันนี้ อัปเดตราคาทองคำแท่ง ทองรูปพรรณ ล่าสุด";
 const DESCRIPTION =
@@ -107,6 +112,8 @@ export default async function HomePage() {
           ยังไม่มีข้อมูลราคาทองในระบบ กรุณากลับมาตรวจสอบใหม่อีกครั้ง
         </p>
       )}
+
+      <PushNotificationToggle />
 
       <PriceAlertSignup />
 

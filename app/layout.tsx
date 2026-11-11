@@ -19,6 +19,13 @@ export const metadata: Metadata = {
     template: `%s | ${SITE_NAME}`,
   },
   description: SITE_DESCRIPTION,
+  // Home-screen web app (needed for push notifications on iPhone). The
+  // manifest itself is app/manifest.ts; the icon is app/apple-icon.png.
+  appleWebApp: {
+    capable: true,
+    title: "ราคาทอง",
+    statusBarStyle: "default",
+  },
   openGraph: {
     siteName: SITE_NAME,
     locale: "th_TH",

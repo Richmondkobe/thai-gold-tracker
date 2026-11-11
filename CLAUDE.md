@@ -30,17 +30,28 @@ the clock (jobid 2). It calls `net.http_post()` against the deployed `fetch-pric
 Edge Function. Most runs are cheap no-ops: when the four prices match the latest row
 nothing is inserted and no alerts fire; the only write is a `last_announced_at` stamp
 when GTA has re-announced the same prices at a newer time (see "Official announcement
-time" below). Only a genuinely new price inserts a row and fires price alerts.
+time" below). Only a genuinely new price inserts a row and fires browser pushes and
+price alerts.
 (Verified against live `cron.job` 2026-11-11, when it was changed from `*/30` with
 `cron.alter_job`.)
 
 To change the schedule without retyping the secret:
 `select cron.alter_job(job_id := (select jobid from cron.job where jobname = 'fetch-gold-prices'), schedule := '...');`
 
-Things that follow from the 2-minute cadence: `cron.job_run_details` gains ~720 rows a
-day and is never pruned automatically; and the public pages are ISR (`/` revalidates
-every 300s), so a new price can take up to ~2 + 5 minutes to appear on the site even
-though the alert email goes out as soon as the fetcher sees it.
+Things that follow from the 2-minute cadence:
+
+- `cron.job_run_details` gains ~720 rows a day and pg_cron never prunes it. A second
+  job, `prune-cron-run-details` (`17 20 * * *` UTC = 03:17 Bangkok), deletes rows older
+  than 7 days. Its SQL was handed to Richmond on 2026-11-11 to run in the SQL editor;
+  it has not been verified from this side - check with
+  `select jobname, schedule, active from cron.job;` before relying on it.
+- The public pages are ISR. The homepage revalidates every 60s (the other price pages
+  stay at 300s: every regeneration is an ISR write, and only `/` is worth spending
+  them on). ISR serves the stale page to the first visitor after expiry, so a new
+  price reaches the homepage roughly 1-3 minutes after GTA announces it - while the
+  push/email goes out the moment the fetcher sees it, and a notification tapped
+  straight away can briefly land on the previous price. On-demand revalidation from
+  the Edge Function would close that gap; it is not built.
 
 ## Price alerts
 
@@ -67,7 +78,8 @@ Two alert types (`price_alerts.alert_type`, migration 0007):
   earlier one was never confirmed, the confirmation email is re-sent instead.
 
 Sending happens in the `fetch-prices` Edge Function, only after a new row is actually
-inserted, and can never fail the insert (`fireAlerts` never throws). Order matters
+inserted (and after the browser pushes - see below), and can never fail the insert
+(`fireAlerts` never throws). Order matters
 because of Resend's daily cap: **target alerts are sent first** (individually), then
 every_change emails via Resend's batch endpoint (one request per 100 recipients, each
 person still gets their own email). On any Resend 429 / quota error the function stops
@@ -75,6 +87,57 @@ sending for that run and logs `RESEND QUOTA/RATE LIMIT HIT` - unsent target aler
 armed for the next price change, unsent every_change emails are skipped. Watch the
 volume: every_change costs (subscribers x price changes per day) emails, and GTA can
 announce 10-30+ changes on a volatile day, so the free plan's cap is reached quickly.
+
+## Browser push notifications
+
+Free, no email: the homepage button "เปิดการแจ้งเตือนราคาทองบนเครื่องนี้"
+(`components/PushNotificationToggle.tsx`, above the email form) subscribes the browser
+to Web Push for every price change.
+
+- **Client.** `public/sw.js` is push-only on purpose - no `fetch` handler, no caching,
+  so it can never serve a stale price; it is registered only when the user turns
+  notifications on. `app/manifest.ts` + `public/icons/*` + `app/apple-icon.png` +
+  `appleWebApp` metadata make the site installable, which is the only way iPhone/iPad
+  allow web push (iOS 16.4+, opened from the home-screen icon); in a normal iOS Safari
+  tab the card shows add-to-home-screen instructions instead of the button. The enable
+  handler must call `Notification.requestPermission()` before any other `await`
+  (Safari needs it directly in the tap) and must NOT await the welcome
+  `showNotification()` (its promise can hang and froze the card in its busy state).
+- **Storage.** `push_subscriptions` (migration 0009: `endpoint` unique, `p256dh`, `auth`,
+  `created_at`, `last_success_at`). RLS fully locked like `price_alerts`; written only
+  through `POST`/`DELETE /api/push/subscriptions` with the service-role client.
+  `lib/push-subscription.ts` only accepts endpoints on known push-service hosts (FCM,
+  Mozilla, Apple, Windows), because the sender POSTs to whatever URL is stored - add a
+  host there if a legitimate browser is ever rejected.
+- **Sending.** `supabase/functions/_shared/push.ts`, called by `fetch-prices` right after
+  a genuinely new row is inserted and BEFORE any email (push is free and has no Resend
+  quota). Title like "ราคาทองลง 50 บาท", body = new bar sell price + announcement time,
+  tap opens `/`. Subscriptions answering 404/410 are deleted; the rest get
+  `last_success_at`. Neither the push block nor the email block can throw, so one
+  failing never affects the other or the stored price. Pushes use TTL 2h and a shared
+  `Topic`, so a device coming back online gets only the latest price.
+- **Library.** `jsr:@negrel/webpush@0.5.0` (pinned): pure Web Crypto + `fetch`, so it
+  runs natively in the Supabase Edge (Deno) runtime, unlike the Node-based `web-push`
+  package. It is a small 0.x library whose README says it has had no expert crypto
+  review. Proven on 2026-11-11 by a push sent from the deployed Edge runtime and
+  displayed by real Chrome on macOS (and decrypted by a scripted Mozilla subscriber).
+- **Keys.** One VAPID pair, standard base64url format. `NEXT_PUBLIC_VAPID_PUBLIC_KEY` on
+  Vercel (Production + Preview) - the button renders nothing if it is missing at build
+  time. `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` as Supabase function secrets. The
+  private key is deliberately NOT on Vercel (Vercel never sends pushes). All three are
+  in the local `.env.local`. **Never regenerate the pair** - every existing browser
+  subscription is bound to it and would silently stop working.
+- **Testing without a price change.** The `push-test` Edge Function sends one push to
+  one subscription (`{"id": <row id>}` or a full `{"subscription": ...}`); it cannot
+  broadcast. Auth is a service_role key as Bearer, checked by using it against the Auth
+  admin API (the runtime's injected `SUPABASE_SERVICE_ROLE_KEY` is not byte-identical
+  to the dashboard key, so a string comparison fails). Deploy it with
+  `--no-verify-jwt`. "Accepted by the push service" is not "shown on screen": OS-level
+  settings (e.g. macOS System Settings > Notifications > Google Chrome) can hide
+  notifications entirely.
+- **Scale note.** Each push costs a little Edge Function CPU for encryption; fine for
+  hundreds of subscribers, but revisit (batching across invocations) well before
+  several thousand.
 
 ## Official announcement time (`last_announced_at`)
 

@@ -8,6 +8,7 @@
 // `supabase secrets set CRON_SECRET=...` or the Dashboard's Edge Functions > Secrets tab.
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
+import { type PushStats, sendPushToAll } from "../_shared/push.ts";
 
 const LATEST_URL =
   "https://www.goldtraders.or.th/api/GoldPrices/Latest?readjson=false";
@@ -43,6 +44,11 @@ function parseBangkokTime(asTime: unknown): Date | null {
 //                    new target.
 //   'every_change' - recurring. Emailed on every new price until the user
 //                    unsubscribes; triggered_at is never stamped.
+//
+// Browser push (push_subscriptions, migration 0009) is a third, separate
+// channel: free, no Resend involved. It is sent FIRST, before any email, in its
+// own never-throwing block (see sendPricePush), so neither side can hold up or
+// break the other.
 //
 // Resend quota: the free plan has a daily cap. Target alerts are sent FIRST
 // because they are one-shot and time-critical; every_change emails only go out
@@ -84,6 +90,14 @@ const thaiDateFormatter = new Intl.DateTimeFormat("th-TH-u-ca-buddhist", {
   weekday: "long",
   day: "numeric",
   month: "long",
+  year: "numeric",
+});
+
+// "11 พ.ย. 2569" - matches lib/thai-date.ts formatThaiDateCompact.
+const thaiShortDateFormatter = new Intl.DateTimeFormat("th-TH-u-ca-buddhist", {
+  timeZone: "Asia/Bangkok",
+  day: "numeric",
+  month: "short",
   year: "numeric",
 });
 
@@ -224,6 +238,36 @@ function alertEmailHtml(opts: {
   `;
 }
 
+/** "ราคาทองขึ้น 100 บาท" / "ราคาทองลง 50 บาท" - shared by the push title and the
+ *  every_change email. bar_sell can stay flat while another of the four prices
+ *  moves (still a new announcement), and there is no previous price on an
+ *  empty table, so both of those get neutral wording. */
+function changeHeading(barSell: number, previousBarSell: number | null): string {
+  const diff = previousBarSell === null ? 0 : barSell - previousBarSell;
+  if (diff === 0) return "ราคาทองอัปเดตใหม่";
+  return `ราคาทอง${diff > 0 ? "ขึ้น" : "ลง"} ${thaiAmountFormatter.format(Math.abs(diff))} บาท`;
+}
+
+/** Browser push to every subscribed device. Never throws; sendPushToAll also
+ *  prunes subscriptions the push service reports as gone (404/410). */
+async function sendPricePush(supabase: Db, price: NewPrice): Promise<PushStats> {
+  try {
+    const stats = await sendPushToAll(supabase, {
+      title: changeHeading(price.barSell, price.previousBarSell),
+      body:
+        `ทองคำแท่งขายออก ${thaiPriceFormatter.format(price.barSell)} บาท\n` +
+        `ประกาศ ${thaiShortDateFormatter.format(price.fetchedAt)} เวลา ${thaiTimeFormatter.format(price.fetchedAt)} น.`,
+      url: "/",
+      tag: "gold-price",
+    });
+    console.log(`[push] done: ${JSON.stringify(stats)}`);
+    return stats;
+  } catch (err) {
+    console.error("[push] failed:", err instanceof Error ? err.message : err);
+    return { sent: 0, gone: 0, failed: 0, skipped: "error" };
+  }
+}
+
 interface EveryChangeSubscriber {
   id: number;
   email: string;
@@ -240,21 +284,16 @@ function everyChangeEmail(price: NewPrice, previousBarSell: number, siteUrl: str
   const newText = thaiPriceFormatter.format(price.barSell);
   const previousText = thaiPriceFormatter.format(previousBarSell);
 
-  // bar_sell can stay flat while another of the four prices moves (that still
-  // counts as a new announcement), so "no change" needs its own wording.
-  let heading: string;
+  const heading = changeHeading(price.barSell, previousBarSell);
   let changeLine: string;
   let color: string;
   if (diff > 0) {
-    heading = `ราคาทองขึ้น ${absDiff} บาท`;
     changeLine = `▲ ขึ้น ${absDiff} บาท (+${absPct}%)`;
     color = "#16a34a";
   } else if (diff < 0) {
-    heading = `ราคาทองลง ${absDiff} บาท`;
     changeLine = `▼ ลง ${absDiff} บาท (-${absPct}%)`;
     color = "#dc2626";
   } else {
-    heading = "ราคาทองอัปเดตใหม่";
     changeLine = "ราคาทองคำแท่งขายออกไม่เปลี่ยนแปลง (0.00%)";
     color = "#6b7280";
   }
@@ -624,24 +663,27 @@ Deno.serve(async (req) => {
 
     const inserted = Boolean(count && count > 0);
 
-    // Only a genuinely new price can fire alerts; fireAlerts never throws,
-    // and the row is already safely stored by this point either way.
-    const alertStats = inserted
-      ? await fireAlerts(supabase, {
-          barBuy,
-          barSell,
-          ornamentBuy,
-          ornamentSell,
-          fetchedAt,
-          previousBarSell: latestRow ? Number(latestRow.bar_sell) : null,
-        })
-      : undefined;
+    // Only a genuinely new price notifies anyone, and the row is already
+    // safely stored by this point. Browser push goes first (free, fast, no
+    // Resend quota), then the emails; neither function ever throws, so one
+    // channel failing cannot affect the other or the stored price.
+    const newPrice: NewPrice = {
+      barBuy,
+      barSell,
+      ornamentBuy,
+      ornamentSell,
+      fetchedAt,
+      previousBarSell: latestRow ? Number(latestRow.bar_sell) : null,
+    };
+    const pushStats = inserted ? await sendPricePush(supabase, newPrice) : undefined;
+    const alertStats = inserted ? await fireAlerts(supabase, newPrice) : undefined;
 
     return new Response(
       JSON.stringify({
         status: inserted ? "inserted" : "skipped",
         reason: inserted ? undefined : "duplicate fetched_at",
         fetchedAt: fetchedAtIso,
+        push: pushStats,
         alerts: alertStats,
       }),
       { headers: { "content-type": "application/json" } },
