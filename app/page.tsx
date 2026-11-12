@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { formatThaiDateLong } from "@/lib/thai-date";
+import { formatThaiDateCompact, formatThaiDateLong } from "@/lib/thai-date";
 import {
   getDailyHistory,
   getLatestPrices,
@@ -14,6 +14,9 @@ import { PriceCard } from "@/components/PriceCard";
 import { GoldCalculator } from "@/components/GoldCalculator";
 import { WEIGHT_PAGES, weightPagePath } from "@/lib/weight-pages";
 import { PROFIT_CALC_PATH } from "@/lib/site";
+import { GUIDE_PAGES, guidePagePath } from "@/lib/guide-pages";
+import { listMonthPages, monthPagePath } from "@/lib/month-pages";
+import { listYearPages, yearPagePath } from "@/lib/year-pages";
 import { IntradayTable } from "@/components/IntradayTable";
 import { PriceChart } from "@/components/PriceChart";
 import { FaqSection } from "@/components/FaqSection";
@@ -27,20 +30,31 @@ import { homeFaqItems } from "@/lib/faq-content";
 // and the other price pages stay at 300s to keep well inside Vercel's free tier.
 export const revalidate = 60;
 
-const TITLE = "ราคาทองวันนี้ อัปเดตราคาทองคำแท่ง ทองรูปพรรณ ล่าสุด";
 const DESCRIPTION =
-  "เช็คราคาทองคำแท่งและทองรูปพรรณวันนี้ อัปเดตตามประกาศสมาคมค้าทองคำ พร้อมราคาย้อนหลัง กราฟราคาทอง 30 วัน และตารางราคาระหว่างวัน";
+  "เช็กราคาทองวันนี้ล่าสุด ทองคำแท่งและทองรูปพรรณ 96.5% ตามประกาศสมาคมค้าทองคำ อัปเดตทุกครั้งที่ราคาเปลี่ยน พร้อมราคาทอง 1 บาท 1 สลึง กราฟย้อนหลัง และแจ้งเตือนราคาฟรี";
 
-export const metadata: Metadata = {
-  title: TITLE,
-  description: DESCRIPTION,
-  alternates: { canonical: "/" },
-  openGraph: {
-    title: TITLE,
+// The title carries today's date in Bangkok time (short Thai month, Buddhist
+// year), e.g. "ราคาทองวันนี้ 13 พ.ย. 2569 ล่าสุด ...". It is worked out each time
+// the page is regenerated - this is still a static ISR page, not a per-request
+// one - so the date rolls over with the first regeneration after midnight:
+//   - with any traffic, that is within about a minute (revalidate = 60 above);
+//   - regardless of traffic, the 00:01 cron (app/api/cron/indexnow) purges the
+//     cached page and re-requests it, then checks the new date is in the title.
+export function generateMetadata(): Metadata {
+  const title = `ราคาทองวันนี้ ${formatThaiDateCompact(new Date())} ล่าสุด ทองคำแท่ง ทองรูปพรรณ อัปเดตทุกครั้ง`;
+  return {
+    title,
     description: DESCRIPTION,
-    url: "/",
-  },
-};
+    alternates: { canonical: "/" },
+    openGraph: {
+      title,
+      description: DESCRIPTION,
+      url: "/",
+    },
+  };
+}
+
+const TEXT_LINK_CLASS = "text-amber-600 hover:underline dark:text-amber-400";
 
 interface HomeData {
   latest: LatestGoldPriceRow[];
@@ -70,6 +84,13 @@ async function loadHomeData(): Promise<HomeData> {
 export default async function HomePage() {
   const { latest, intraday, yesterday, history } = await loadHomeData();
   const [current, previous] = latest;
+
+  // Links to the month and year pages currently in progress. "Current" follows
+  // the newest stored price (not the clock), so they always point at pages
+  // that exist - see lib/month-pages.ts.
+  const asOf = history.length > 0 ? history[history.length - 1].fetchedAt : current?.fetchedAt;
+  const currentMonth = asOf ? listMonthPages(asOf).at(-1) : undefined;
+  const currentYear = asOf ? listYearPages(asOf).at(-1) : undefined;
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-4 py-6">
@@ -133,12 +154,47 @@ export default async function HomePage() {
         <div className="mt-3">
           <PriceChart rows={history} title="ราคาทองคำแท่งขายออกย้อนหลัง 30 วัน" />
         </div>
-        <Link
-          href="/history"
-          className="mt-2 inline-block text-sm font-medium text-amber-600 hover:underline dark:text-amber-400"
-        >
-          ดูราคาทองย้อนหลังทั้งหมด →
-        </Link>
+        <ul className="mt-2 flex flex-col gap-1 text-sm font-medium">
+          <li>
+            <Link href="/history" className={TEXT_LINK_CLASS}>
+              ดูราคาทองย้อนหลังทั้งหมด →
+            </Link>
+          </li>
+          <li>
+            <Link href="/gold-price-chart" className={TEXT_LINK_CLASS}>
+              กราฟราคาทองย้อนหลัง 1 เดือนถึง 10 ปี →
+            </Link>
+          </li>
+          {currentMonth && (
+            <li>
+              <Link href={monthPagePath(currentMonth)} className={TEXT_LINK_CLASS}>
+                ราคาทองเดือน{currentMonth.monthName} {currentMonth.buddhistYear} →
+              </Link>
+            </li>
+          )}
+          {currentYear && (
+            <li>
+              <Link href={yearPagePath(currentYear.buddhistYear)} className={TEXT_LINK_CLASS}>
+                ราคาทองปี {currentYear.buddhistYear} →
+              </Link>
+            </li>
+          )}
+        </ul>
+      </section>
+
+      <section aria-labelledby="guides-heading">
+        <h2 id="guides-heading" className="text-xl font-bold text-gray-900 dark:text-gray-50">
+          ความรู้เรื่องทอง
+        </h2>
+        <ul className="mt-3 flex flex-col gap-2 text-sm font-medium">
+          {GUIDE_PAGES.map((guide) => (
+            <li key={guide.slug}>
+              <Link href={guidePagePath(guide)} className={TEXT_LINK_CLASS}>
+                {guide.title} →
+              </Link>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <FaqSection items={homeFaqItems} />

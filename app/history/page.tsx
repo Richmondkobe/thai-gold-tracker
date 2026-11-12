@@ -12,7 +12,8 @@ import { listRecentMonthPages, monthPagePath } from "@/lib/month-pages";
 
 export const revalidate = 3600;
 
-const TITLE = "ราคาทองย้อนหลัง ดูราคาทองคำแท่งและทองรูปพรรณย้อนหลัง 30 วันถึง 10 ปี";
+// Under 60 characters including the " | ราคาทองวันนี้" suffix from the root layout.
+const TITLE = "ราคาทองย้อนหลัง 30 วันถึง 10 ปี พร้อมกราฟ";
 const DESCRIPTION =
   "ราคาทองย้อนหลังรายวัน ทั้งทองคำแท่งและทองรูปพรรณ พร้อมกราฟราคาทอง เลือกดูย้อนหลังได้ 30 วัน 90 วัน 1 ปี 5 ปี หรือทั้งหมด อ้างอิงประกาศสมาคมค้าทองคำ";
 

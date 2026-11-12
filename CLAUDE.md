@@ -158,8 +158,14 @@ Tells search engines about new and changed pages (protocol: indexnow.org/documen
   key, so the key file is NOT committed: `/<key>.txt` is rewritten (next.config.ts) to
   `app/api/indexnow-key/[key]/route.ts`, which answers only for the configured key.
   Changing the key means updating the env var and redeploying.
-- **Daily job.** Vercel Cron (`vercel.json`, `30 11 * * *` UTC = 18:30 Bangkok, after
-  the market closes) calls `GET /api/cron/indexnow` with Vercel's `CRON_SECRET`. It
+- **Daily job.** Vercel Cron (`vercel.json`, `1 17 * * *` UTC = 00:01 Bangkok) calls
+  `GET /api/cron/indexnow` with Vercel's `CRON_SECRET`. It runs just after midnight
+  because the homepage `<title>` carries today's Bangkok date: the job first purges
+  the cached homepage (`revalidatePath("/")`), re-requests it and checks the new date
+  is in the title (reported as `homepageShowsToday`), then submits. Minute-level cron
+  timing needs the Vercel Pro plan the project is on; on Hobby it would fire any time
+  within the hour, and ordinary ISR (60s) would still roll the date on the first
+  visits after midnight. It
   submits the pages that change every trading day (`/`, `/history`,
   `/gold-price-chart`, the current month page, the current year page) plus any
   sitemap URL not yet in the `indexnow_urls` table (migration 0010), then records
@@ -172,6 +178,16 @@ Tells search engines about new and changed pages (protocol: indexnow.org/documen
   the daily job by hand.
 - 200 and 202 (key validation pending) are both success; 403 means the key file is not
   reachable or wrong.
+
+## Sitemap dates, and the dates on articles
+
+`app/sitemap.ts` emits a REAL `<lastmod>` for every URL, never "now" (regenerated
+hourly): price-driven pages use the time of the newest stored price, a finished month
+or year uses the time of its last price, and articles and trust pages use the
+hand-maintained `updatedAt` in `lib/guide-pages.ts` / `lib/trust-pages.ts`. **Bump
+`updatedAt` by hand whenever you edit an article or trust page** - for articles it
+also drives the visible "อัปเดตล่าสุด" line and the Article JSON-LD `dateModified`.
+Keep meta descriptions at or under 160 characters.
 
 ## Explicitly out of scope (v2)
 

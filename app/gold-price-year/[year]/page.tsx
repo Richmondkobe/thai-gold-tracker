@@ -50,7 +50,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const config = await resolveConfig(params);
   const path = yearPagePath(config.buddhistYear);
   const title = `ราคาทองปี ${config.buddhistYear} ย้อนหลังทั้งปี กราฟและตารางรายเดือน | ThaiGoldTracker`;
-  const description = `เช็คราคาทองคำแท่งปี ${config.buddhistYear} ย้อนหลังทั้งปี เปิดปีเท่าไหร่ ปิดปีเท่าไหร่ ราคาสูงสุด-ต่ำสุดเมื่อไหร่ พร้อมกราฟราคารายวันและตารางสรุปราคารายเดือน อ้างอิงประกาศสมาคมค้าทองคำ`;
+  const description = `เช็คราคาทองคำแท่งปี ${config.buddhistYear} ย้อนหลังทั้งปี เปิดปี ปิดปี ราคาสูงสุด-ต่ำสุดเมื่อไหร่ พร้อมกราฟรายวันและตารางสรุปราคารายเดือน อ้างอิงประกาศสมาคมค้าทองคำ`;
   const encodedPath = encodeURI(path);
 
   return {

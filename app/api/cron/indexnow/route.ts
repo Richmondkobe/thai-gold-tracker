@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import sitemap from "@/app/sitemap";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDataAsOfDate } from "@/lib/gold-price-queries";
@@ -6,10 +7,18 @@ import { selectUrlsToSubmit, submitToIndexNow } from "@/lib/indexnow";
 import { listMonthPages, monthPagePath } from "@/lib/month-pages";
 import { listYearPages, yearPagePath } from "@/lib/year-pages";
 import { SITE_URL } from "@/lib/site";
+import { formatThaiDateCompact } from "@/lib/thai-date";
 
-// Daily IndexNow submission, run by Vercel Cron (vercel.json) once a day after
-// the Thai market has closed. Vercel calls it with
-// `Authorization: Bearer <CRON_SECRET>`.
+// The once-a-day job, run by Vercel Cron (vercel.json) at 00:01 Bangkok time.
+// Vercel calls it with `Authorization: Bearer <CRON_SECRET>`.
+//
+// 1. Rolls the homepage over to the new day. The homepage <title> carries
+//    today's date, and the page is cached (ISR): left alone, the first visitor
+//    after midnight - possibly a search engine - would still be handed
+//    yesterday's copy. So this purges the cached homepage, requests it again
+//    and checks that the new date is really in the title.
+// 2. Then tells IndexNow, which is why this runs just after midnight rather
+//    than after the market closes: the homepage has just changed.
 //
 // Submits:
 //   1. the pages whose content changes every trading day - the homepage,
@@ -26,6 +35,30 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 1000;
+
+/**
+ * Purges the cached homepage and re-requests it until its <title> shows
+ * today's Bangkok date. Never throws; reports what it saw.
+ */
+async function refreshHomepage(): Promise<{ fresh: boolean; title: string | null }> {
+  const today = formatThaiDateCompact(new Date());
+  let title: string | null = null;
+  try {
+    // Marks "/" stale; the regeneration happens on the next request, below.
+    revalidatePath("/");
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 2000));
+      const response = await fetch(`${SITE_URL}/`, { cache: "no-store" });
+      const html = await response.text();
+      title = /<title>([^<]*)<\/title>/.exec(html)?.[1] ?? null;
+      if (title?.includes(today)) return { fresh: true, title };
+    }
+  } catch (err) {
+    console.error("[indexnow] homepage refresh failed:", err instanceof Error ? err.message : err);
+  }
+  console.error(`[indexnow] homepage title does not show today's date (${today}): ${title}`);
+  return { fresh: false, title };
+}
 
 /** Every URL recorded as submitted. Throws if the table can't be read. */
 async function loadKnownUrls(): Promise<Set<string>> {
@@ -56,6 +89,8 @@ export async function GET(request: Request) {
   if (host === "localhost" || host === "127.0.0.1") {
     return NextResponse.json({ status: "skipped", reason: `SITE_URL is ${host}` });
   }
+
+  const homepage = await refreshHomepage();
 
   const asOf = await getDataAsOfDate();
   const currentMonth = listMonthPages(asOf).at(-1);
@@ -112,6 +147,8 @@ export async function GET(request: Request) {
       indexNowStatus: result.status,
       detail: result.detail || undefined,
       submitted: result.submitted,
+      homepageTitle: homepage.title,
+      homepageShowsToday: homepage.fresh,
       dailyUrls: dailyUrls.length,
       newUrls,
       warning,

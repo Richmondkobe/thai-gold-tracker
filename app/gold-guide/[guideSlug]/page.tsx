@@ -10,9 +10,9 @@ import {
 } from "@/lib/guide-pages";
 import { WEIGHT_PAGES, weightPagePath } from "@/lib/weight-pages";
 import { getLatestPrices, type LatestGoldPriceRow } from "@/lib/gold-price-queries";
-import { formatThaiDateCompact, formatThaiPrice } from "@/lib/thai-date";
+import { formatThaiDateCompact, formatThaiDateShort, formatThaiPrice } from "@/lib/thai-date";
 import { JsonLd } from "@/components/JsonLd";
-import { PROFIT_CALC_PATH, SITE_URL } from "@/lib/site";
+import { PROFIT_CALC_PATH, SITE_NAME, SITE_URL } from "@/lib/site";
 
 // Same routing pattern as app/gold-weight/[weightSlug]: ASCII folder, Thai
 // public URL via rewrite, unknown slugs 404 via notFound() (dynamicParams=false
@@ -45,6 +45,45 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       url: path,
     },
   };
+}
+
+/**
+ * Article structured data, with the site itself as author and publisher (the
+ * articles have no individual byline). Dates come from the hand-maintained
+ * publishedAt / updatedAt in lib/guide-pages.ts, at Bangkok midnight.
+ */
+function GuideArticleJsonLd({ config }: { config: GuidePageConfig }) {
+  const url = `${SITE_URL}${encodeURI(guidePagePath(config))}`;
+  const site = { "@type": "Organization", name: SITE_NAME, url: SITE_URL };
+  return (
+    <JsonLd
+      data={{
+        "@context": "https://schema.org",
+        "@type": "Article",
+        headline: config.title,
+        description: config.description,
+        inLanguage: "th",
+        datePublished: `${config.publishedAt}T00:00:00+07:00`,
+        dateModified: `${config.updatedAt}T00:00:00+07:00`,
+        mainEntityOfPage: { "@type": "WebPage", "@id": url },
+        author: site,
+        publisher: {
+          ...site,
+          logo: { "@type": "ImageObject", url: `${SITE_URL}/icons/icon-512.png` },
+        },
+      }}
+    />
+  );
+}
+
+/** Visible "last updated" line, shown under each article's H1. */
+function GuideUpdatedDate({ config }: { config: GuidePageConfig }) {
+  return (
+    <p className="text-xs text-gray-500 dark:text-gray-400">
+      อัปเดตล่าสุด:{" "}
+      <time dateTime={config.updatedAt}>{formatThaiDateShort(new Date(config.updatedAt))}</time>
+    </p>
+  );
 }
 
 const gramFormatter = new Intl.NumberFormat("th-TH", {
@@ -100,10 +139,15 @@ function Gold1BahtGramsContent({ config }: { config: GuidePageConfig }) {
         }}
       />
 
+      <GuideArticleJsonLd config={config} />
+
       <header>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50 sm:text-3xl">
           ทอง 1 บาท กี่กรัม?
         </h1>
+        <div className="mt-2">
+          <GuideUpdatedDate config={config} />
+        </div>
         <p className="mt-3 text-base text-gray-700 dark:text-gray-300">
           ทองคำแท่ง 1 บาท หนัก{" "}
           <strong className="text-gray-900 dark:text-gray-50">
@@ -170,7 +214,7 @@ function Gold1BahtGramsContent({ config }: { config: GuidePageConfig }) {
         </div>
       </section>
 
-      <GuideCrossLinks />
+      <GuideCrossLinks currentSlug={config.slug} />
 
       <footer className="mt-4 border-t border-gray-200 pt-4 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
         <p>
@@ -186,8 +230,29 @@ const guideHeading = "text-lg font-bold text-gray-900 dark:text-gray-50";
 const guideParagraph = "text-sm leading-relaxed text-gray-600 dark:text-gray-400";
 const guideStrong = "font-semibold text-gray-900 dark:text-gray-100";
 
-function GuideCrossLinks() {
+function GuideCrossLinks({ currentSlug }: { currentSlug: string }) {
+  const otherGuides = GUIDE_PAGES.filter((guide) => guide.slug !== currentSlug);
   return (
+    <>
+      {otherGuides.length > 0 && (
+        <section>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">
+            ความรู้เรื่องทองที่เกี่ยวข้อง
+          </h2>
+          <ul className="mt-3 flex flex-col gap-2 text-sm font-medium">
+            {otherGuides.map((guide) => (
+              <li key={guide.slug}>
+                <Link
+                  href={guidePagePath(guide)}
+                  className="text-amber-600 hover:underline dark:text-amber-400"
+                >
+                  {guide.title} →
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     <section>
       <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">
         เช็คราคาทองตามน้ำหนัก
@@ -219,6 +284,7 @@ function GuideCrossLinks() {
         </Link>
       </div>
     </section>
+    </>
   );
 }
 
@@ -283,11 +349,17 @@ function GuideShell({
           ],
         }}
       />
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50 sm:text-3xl">
-        {h1}
-      </h1>
+      <GuideArticleJsonLd config={config} />
+      <header>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50 sm:text-3xl">
+          {h1}
+        </h1>
+        <div className="mt-2">
+          <GuideUpdatedDate config={config} />
+        </div>
+      </header>
       {children}
-      <GuideCrossLinks />
+      <GuideCrossLinks currentSlug={config.slug} />
       <footer className="mt-4 border-t border-gray-200 pt-4 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
         <p>{footerNote}</p>
       </footer>

@@ -4,7 +4,7 @@ import { formatThaiDateLong } from "@/lib/thai-date";
 import { toBangkokDateString } from "@/lib/bangkok";
 import { getLatestPrices, type LatestGoldPriceRow } from "@/lib/gold-price-queries";
 import { WEIGHT_PAGES, weightPagePath } from "@/lib/weight-pages";
-import { GUIDE_PAGES, guidePagePath } from "@/lib/guide-pages";
+import { GUIDE_PAGES, getGuidePageBySlug, guidePagePath } from "@/lib/guide-pages";
 import { ProfitCalculator } from "@/components/ProfitCalculator";
 import { MarketStatusLine } from "@/components/MarketStatusLine";
 import { JsonLd } from "@/components/JsonLd";
@@ -14,7 +14,7 @@ export const revalidate = 300;
 
 const TITLE = "คำนวณกำไรขาดทุนทอง เทียบราคาที่ซื้อกับราคารับซื้อวันนี้";
 const DESCRIPTION =
-  "เครื่องมือคำนวณกำไร/ขาดทุนจากทองคำแท่งและทองรูปพรรณที่ถืออยู่ กรอกราคาที่ซื้อหรือเลือกวันที่ซื้อเพื่อดึงราคาประกาศย้อนหลัง เทียบกับราคารับซื้อคืนวันนี้ พร้อมจุดเท่าทุน";
+  "คำนวณกำไรขาดทุนจากทองคำแท่งและทองรูปพรรณที่ถืออยู่ กรอกราคาที่ซื้อหรือเลือกวันที่ซื้อเพื่อดึงราคาย้อนหลัง เทียบกับราคารับซื้อคืนวันนี้ พร้อมจุดเท่าทุน";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -26,6 +26,10 @@ export const metadata: Metadata = {
     url: encodeURI(PROFIT_CALC_PATH),
   },
 };
+
+// The article that matters most to someone working out a profit or loss:
+// how much a shop deducts when it buys gold back.
+const sellDeductionGuide = getGuidePageBySlug("ขายทองรูปพรรณ-หักเท่าไหร่");
 
 async function loadLatest(): Promise<LatestGoldPriceRow | null> {
   try {
@@ -123,6 +127,14 @@ export default async function GoldProfitPage() {
             ทอง 1 บาท กี่กรัม? ตารางแปลงน้ำหนักทอง →
           </Link>
         </div>
+        {sellDeductionGuide && (
+          <Link
+            href={guidePagePath(sellDeductionGuide)}
+            className="mt-2 inline-block text-sm font-medium text-amber-600 hover:underline dark:text-amber-400"
+          >
+            ขายทองรูปพรรณโดนหักเท่าไหร่? เกณฑ์หักค่ากำเหน็จเมื่อขายคืน →
+          </Link>
+        )}
       </section>
 
       <footer className="mt-4 border-t border-gray-200 pt-4 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">

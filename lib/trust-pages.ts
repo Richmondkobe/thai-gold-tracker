@@ -12,11 +12,17 @@ export interface TrustPageConfig {
   nameTh: string;
   title: string;
   description: string;
+  /**
+   * Date this page's text was last edited, "YYYY-MM-DD" - the sitemap's
+   * lastmod. Bump it by hand when the page's content changes.
+   */
+  updatedAt: string;
 }
 
 export const TRUST_PAGES: TrustPageConfig[] = [
   {
     slug: "about",
+    updatedAt: "2026-08-30",
     pathTh: "/เกี่ยวกับเรา",
     nameTh: "เกี่ยวกับเรา",
     title: "เกี่ยวกับเรา",
@@ -25,6 +31,7 @@ export const TRUST_PAGES: TrustPageConfig[] = [
   },
   {
     slug: "data-source",
+    updatedAt: "2026-08-30",
     pathTh: "/แหล่งข้อมูล",
     nameTh: "แหล่งข้อมูล",
     title: "แหล่งข้อมูลและวิธีการ",
@@ -33,6 +40,7 @@ export const TRUST_PAGES: TrustPageConfig[] = [
   },
   {
     slug: "contact",
+    updatedAt: "2026-08-30",
     pathTh: "/ติดต่อเรา",
     nameTh: "ติดต่อเรา",
     title: "ติดต่อเรา",
@@ -41,6 +49,7 @@ export const TRUST_PAGES: TrustPageConfig[] = [
   },
   {
     slug: "terms",
+    updatedAt: "2026-08-30",
     pathTh: "/ข้อกำหนด",
     nameTh: "ข้อกำหนด",
     title: "ข้อกำหนดการใช้งานและข้อจำกัดความรับผิดชอบ",

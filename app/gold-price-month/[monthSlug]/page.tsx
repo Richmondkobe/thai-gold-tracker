@@ -140,8 +140,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const encodedPath = encodeURI(monthPagePath(config));
 
   const title = `ราคาทองย้อนหลัง ${label} – ตารางรายวันและกราฟ`;
+  // Both variants stay at or under 160 characters, even with the longest
+  // month name and six-digit prices.
   const description = stats
-    ? `ราคาทองคำแท่งขายออกเดือน${label} สูงสุด ${formatThaiWholeNumber(stats.high)} บาท ต่ำสุด ${formatThaiWholeNumber(stats.low)} บาท (ราคาปิดรายวัน) ดูตารางราคาทองรายวันของทองคำแท่งและทองรูปพรรณ พร้อมกราฟราคาทองตลอดเดือน อ้างอิงประกาศสมาคมค้าทองคำ`
+    ? `ราคาทองคำแท่งเดือน${label} ปิดสูงสุด ${formatThaiWholeNumber(stats.high)} บาท ต่ำสุด ${formatThaiWholeNumber(stats.low)} บาท พร้อมตารางราคาทองรายวัน ทองคำแท่งและทองรูปพรรณ และกราฟตลอดเดือน อ้างอิงสมาคมค้าทองคำ`
     : `ราคาทองย้อนหลังเดือน${label} ตารางราคาทองรายวันของทองคำแท่งและทองรูปพรรณ พร้อมกราฟราคาทองตลอดเดือน อ้างอิงประกาศสมาคมค้าทองคำ`;
 
   return {
