@@ -46,6 +46,14 @@ const nextConfig: NextConfig = {
         source: `/${encodeURIComponent("ข้อกำหนด")}`,
         destination: "/site-info/terms",
       },
+      {
+        // IndexNow key file, /<key>.txt at the site root. The route only
+        // answers when <key> is the configured INDEXNOW_KEY; any other root
+        // .txt name gets its 404. Real files and routes (robots.txt) are
+        // matched before rewrites, so they are unaffected.
+        source: "/:key([A-Za-z0-9-]+).txt",
+        destination: "/api/indexnow-key/:key",
+      },
     ];
   },
   async headers() {

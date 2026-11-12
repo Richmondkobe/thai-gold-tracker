@@ -149,6 +149,30 @@ change calculation. Anything that shows a "last updated" time must use
 `LatestGoldPriceRow.announcedAt` from `getLatestPrices()` (= `last_announced_at ??
 fetched_at`), never `fetchedAt`. The same logic is mirrored in `lib/gold-price-store.ts`.
 
+## IndexNow (Bing and other participating engines)
+
+Tells search engines about new and changed pages (protocol: indexnow.org/documentation).
+
+- **Key.** `INDEXNOW_KEY` env var (Vercel Production + local `.env.local`). The repo is
+  public and the protocol says only the owner and the search engines should know the
+  key, so the key file is NOT committed: `/<key>.txt` is rewritten (next.config.ts) to
+  `app/api/indexnow-key/[key]/route.ts`, which answers only for the configured key.
+  Changing the key means updating the env var and redeploying.
+- **Daily job.** Vercel Cron (`vercel.json`, `30 11 * * *` UTC = 18:30 Bangkok, after
+  the market closes) calls `GET /api/cron/indexnow` with Vercel's `CRON_SECRET`. It
+  submits the pages that change every trading day (`/`, `/history`,
+  `/gold-price-chart`, the current month page, the current year page) plus any
+  sitemap URL not yet in the `indexnow_urls` table (migration 0010), then records
+  those. One POST to `api.indexnow.org`, which shares it with every engine.
+- **Not on price changes, on purpose.** IndexNow asks sites not to resubmit a URL many
+  times a day, and every submission spends crawl quota.
+- **One-off tools.** `scripts/indexnow-submit-sitemap.ts --submit` sends the whole live
+  sitemap (first setup or a big batch of new pages only); `--seed` records the sitemap
+  in `indexnow_urls` without submitting. `vercel crons run /api/cron/indexnow` triggers
+  the daily job by hand.
+- 200 and 202 (key validation pending) are both success; 403 means the key file is not
+  reachable or wrong.
+
 ## Explicitly out of scope (v2)
 
 LINE integration, user accounts, fuel/currency price tracking. Do not implement these unless asked.
