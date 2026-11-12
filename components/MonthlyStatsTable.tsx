@@ -18,7 +18,10 @@ export function MonthlyStatsTable({ stats }: { stats: MonthlyStat[] }) {
   }
 
   return (
-    <div className="overflow-x-auto">
+    // `relative` matters: the sr-only spans in the last column are absolutely
+    // positioned, and without a positioned ancestor they escape this scroll
+    // box and make the whole PAGE scroll sideways on phones.
+    <div className="relative overflow-x-auto">
       <table className="w-full min-w-[520px] text-sm">
         <thead>
           <tr className="border-b border-gray-200 text-left text-gray-500 dark:border-gray-800 dark:text-gray-400">

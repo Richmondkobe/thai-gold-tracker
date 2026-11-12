@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createPublicClient } from "@/lib/supabase/public";
 import { addDays, startOfBangkokDay, toBangkokDateString } from "@/lib/bangkok";
 
@@ -117,6 +118,25 @@ export async function getLatestPrices(limit = 2): Promise<LatestGoldPriceRow[]> 
   return (data ?? []).map(toLatestRow);
 }
 
+/**
+ * When the newest stored price took effect - the "as of" date for the month
+ * page lists (lib/month-pages.ts), so a month with no price yet is never
+ * listed or served. Fails open to the clock: a database hiccup must not make
+ * existing pages 404. cache() shares one lookup across a render.
+ */
+export const getDataAsOfDate = cache(async (): Promise<Date> => {
+  try {
+    const [latest] = await getLatestPrices(1);
+    return latest?.fetchedAt ?? new Date();
+  } catch (err) {
+    console.error(
+      "[gold-price-queries] getDataAsOfDate failed, using the clock:",
+      err instanceof Error ? err.message : err,
+    );
+    return new Date();
+  }
+});
+
 /** All of today's updates (Asia/Bangkok), oldest first, for the intraday table. */
 export async function getTodayIntraday(): Promise<GoldPriceRow[]> {
   const now = new Date();
@@ -218,6 +238,57 @@ export async function getDailyHistoryForYear(gregorianYear: number): Promise<Dai
 
   if (error) throw new Error(`getDailyHistoryForYear failed: ${error.message}`);
   return (data ?? []).map(toDailyRow);
+}
+
+/** First and last calendar day ("YYYY-MM-DD") of a Gregorian month (1-12). */
+function monthDateBounds(gregorianYear: number, month: number): { first: string; last: string } {
+  const mm = String(month).padStart(2, "0");
+  // Day 0 of the following month is the last day of this one.
+  const lastDay = new Date(Date.UTC(gregorianYear, month, 0)).getUTCDate();
+  return {
+    first: `${gregorianYear}-${mm}-01`,
+    last: `${gregorianYear}-${mm}-${String(lastDay).padStart(2, "0")}`,
+  };
+}
+
+/** Daily closing prices for one Gregorian calendar month (1-12), oldest first. At most 31 rows. */
+export async function getDailyHistoryForMonth(
+  gregorianYear: number,
+  month: number,
+): Promise<DailyGoldPriceRow[]> {
+  const { first, last } = monthDateBounds(gregorianYear, month);
+  const supabase = createPublicClient();
+  const { data, error } = await supabase
+    .from("daily_gold_prices")
+    .select("price_date, fetched_at, bar_buy, bar_sell, ornament_buy, ornament_sell")
+    .gte("price_date", first)
+    .lte("price_date", last)
+    .order("price_date", { ascending: true });
+
+  if (error) throw new Error(`getDailyHistoryForMonth failed: ${error.message}`);
+  return (data ?? []).map(toDailyRow);
+}
+
+/**
+ * How many price announcements GTA made in one Bangkok calendar month - one
+ * gold_prices row per announcement that changed a price. Counted in Postgres
+ * (head request), so no rows cross the wire and the ~1000-row cap is moot.
+ */
+export async function getAnnouncementCountForMonth(
+  gregorianYear: number,
+  month: number,
+): Promise<number> {
+  const { first } = monthDateBounds(gregorianYear, month);
+  const next = monthDateBounds(month === 12 ? gregorianYear + 1 : gregorianYear, (month % 12) + 1);
+  const supabase = createPublicClient();
+  const { count, error } = await supabase
+    .from("gold_prices")
+    .select("fetched_at", { count: "exact", head: true })
+    .gte("fetched_at", `${first}T00:00:00+07:00`)
+    .lt("fetched_at", `${next.first}T00:00:00+07:00`);
+
+  if (error) throw new Error(`getAnnouncementCountForMonth failed: ${error.message}`);
+  return count ?? 0;
 }
 
 export interface HistorySummaryStats {

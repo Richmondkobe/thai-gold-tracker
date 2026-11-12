@@ -1,11 +1,17 @@
 import type { MetadataRoute } from "next";
 import { PROFIT_CALC_PATH, SITE_URL } from "@/lib/site";
+import { getDataAsOfDate } from "@/lib/gold-price-queries";
 import { WEIGHT_PAGES, weightPagePath } from "@/lib/weight-pages";
 import { GUIDE_PAGES, guidePagePath } from "@/lib/guide-pages";
 import { TRUST_PAGES } from "@/lib/trust-pages";
 import { CURRENT_YEAR_BE, YEAR_PAGES, yearPagePath } from "@/lib/year-pages";
+import { isCurrentMonth, listMonthPages, monthPagePath } from "@/lib/month-pages";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+// Regenerated daily rather than only at deploy time, so each new month's page
+// is listed once it has data, without anyone having to ship a build.
+export const revalidate = 86400;
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const lastModified = new Date();
 
   const weightPages: MetadataRoute.Sitemap = WEIGHT_PAGES.map((p) => ({
@@ -31,6 +37,19 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: p.buddhistYear === CURRENT_YEAR_BE ? 0.6 : 0.4,
   }));
 
+  // Listed up to the month of the newest stored price (months with no data
+  // are skipped). Same rule as the year pages for the rest: only the month
+  // still in progress changes.
+  const monthPages: MetadataRoute.Sitemap = listMonthPages(await getDataAsOfDate()).map((p) => {
+    const current = isCurrentMonth(p, lastModified);
+    return {
+      url: `${SITE_URL}${encodeURI(monthPagePath(p))}`,
+      lastModified,
+      changeFrequency: current ? "daily" : "yearly",
+      priority: current ? 0.6 : 0.3,
+    };
+  });
+
   return [
     { url: `${SITE_URL}/`, lastModified, changeFrequency: "hourly", priority: 1 },
     {
@@ -54,6 +73,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...weightPages,
     ...guidePages,
     ...yearPages,
+    ...monthPages,
     {
       url: `${SITE_URL}${encodeURI(PROFIT_CALC_PATH)}`,
       lastModified,

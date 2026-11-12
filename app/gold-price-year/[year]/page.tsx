@@ -12,6 +12,7 @@ import {
   yearPagePath,
   type YearPageConfig,
 } from "@/lib/year-pages";
+import { listMonthPagesForYear, monthPagePath } from "@/lib/month-pages";
 import { PriceChart } from "@/components/PriceChart";
 import { YearSummary, type YearSummaryStats } from "@/components/YearSummary";
 import { MonthlyStatsTable } from "@/components/MonthlyStatsTable";
@@ -112,6 +113,12 @@ export default async function YearPage({ params }: Props) {
   const nextPage = currentIndex < YEAR_PAGES.length - 1 ? YEAR_PAGES[currentIndex + 1] : null;
 
   const path = yearPagePath(config.buddhistYear);
+  // Up to the month of this year's newest row, so a month with no data is
+  // never linked; the current year gains one as soon as its first price lands.
+  const monthPages =
+    yearRows.length > 0
+      ? listMonthPagesForYear(config.buddhistYear, yearRows[yearRows.length - 1].fetchedAt)
+      : [];
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6">
@@ -184,6 +191,24 @@ export default async function YearPage({ params }: Props) {
         <p className="rounded-2xl border border-dashed border-gray-300 p-5 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
           ยังไม่มีข้อมูลราคาทองสำหรับปีนี้ในระบบ
         </p>
+      )}
+
+      {monthPages.length > 0 && (
+        <section>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">ราคาทองรายเดือน</h2>
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {monthPages.map((p) => (
+              <li key={p.slug}>
+                <Link
+                  href={monthPagePath(p)}
+                  className="inline-block rounded-full border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:border-amber-500 hover:text-amber-600 dark:border-gray-700 dark:text-gray-300"
+                >
+                  {p.monthName} {p.buddhistYear}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4 dark:border-gray-800">

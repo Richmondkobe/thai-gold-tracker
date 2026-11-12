@@ -23,6 +23,10 @@ const nextConfig: NextConfig = {
         destination: "/gold-price-year/:year",
       },
       {
+        source: `/${encodeURIComponent("ราคาทองเดือน")}/:monthSlug`,
+        destination: "/gold-price-month/:monthSlug",
+      },
+      {
         source: `/${encodeURIComponent("คำนวณกำไรขาดทุนทอง")}`,
         destination: "/gold-profit",
       },
@@ -73,6 +77,11 @@ const nextConfig: NextConfig = {
       {
         source: "/gold-price-year/:year",
         destination: "/ราคาทองปี/:year",
+        permanent: true,
+      },
+      {
+        source: "/gold-price-month/:monthSlug",
+        destination: "/ราคาทองเดือน/:monthSlug",
         permanent: true,
       },
       {

@@ -8,6 +8,7 @@ import {
 import { HistoryExplorer } from "@/components/HistoryExplorer";
 import { HistorySummary } from "@/components/HistorySummary";
 import { YEAR_PAGES, yearPagePath } from "@/lib/year-pages";
+import { listRecentMonthPages, monthPagePath } from "@/lib/month-pages";
 
 export const revalidate = 3600;
 
@@ -55,6 +56,10 @@ async function loadSummary(): Promise<HistorySummaryStats | null> {
 
 export default async function HistoryPage() {
   const [history, summary] = await Promise.all([loadHistory(), loadSummary()]);
+  // Ends at the month of the newest row, so it rolls forward by itself and
+  // never links a month that has no data yet.
+  const recentMonths =
+    history.length > 0 ? listRecentMonthPages(12, history[history.length - 1].fetchedAt) : [];
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6">
@@ -75,6 +80,24 @@ export default async function HistoryPage() {
         <p className="rounded-2xl border border-dashed border-gray-300 p-5 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
           ยังไม่มีข้อมูลราคาทองย้อนหลังในระบบ กรุณากลับมาตรวจสอบใหม่อีกครั้ง
         </p>
+      )}
+
+      {recentMonths.length > 0 && (
+        <section>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">ราคาทองรายเดือน</h2>
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {recentMonths.map((p) => (
+              <li key={p.slug}>
+                <Link
+                  href={monthPagePath(p)}
+                  className="inline-block rounded-full border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:border-amber-500 hover:text-amber-600 dark:border-gray-700 dark:text-gray-300"
+                >
+                  {p.monthName} {p.buddhistYear}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <section>
