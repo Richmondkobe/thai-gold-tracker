@@ -2,13 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatThaiDateShort, formatThaiPrice } from "@/lib/thai-date";
-import { getDailyHistoryForYear, type DailyGoldPriceRow } from "@/lib/gold-price-queries";
+import {
+  getDailyHistoryForYear,
+  getDataAsOfDate,
+  type DailyGoldPriceRow,
+} from "@/lib/gold-price-queries";
 import { computeMonthlyStats, type MonthlyStat } from "@/lib/monthly-stats";
 import {
   FIRST_YEAR_BE,
-  CURRENT_YEAR_BE,
-  YEAR_PAGES,
   getYearPageConfig,
+  isCurrentYear as isYearInProgress,
+  listYearPages,
   yearPagePath,
   type YearPageConfig,
 } from "@/lib/year-pages";
@@ -19,13 +23,16 @@ import { MonthlyStatsTable } from "@/components/MonthlyStatsTable";
 import { JsonLd } from "@/components/JsonLd";
 import { SITE_URL } from "@/lib/site";
 
-// 2569 (the current year) is regenerated on every ISR revalidation like any
+// The year in progress is regenerated on every ISR revalidation like any
 // other page here, so it stays current - past years just happen to return
 // identical data on every regen, which is harmless.
 export const revalidate = 3600;
 
-export function generateStaticParams() {
-  return YEAR_PAGES.map((p) => ({ year: String(p.buddhistYear) }));
+// Years that exist when the site is built. A year that starts later (2570 in
+// January) is not in this list, but dynamicParams is on by default, so its
+// page is generated the first time it is requested - see lib/year-pages.ts.
+export async function generateStaticParams() {
+  return listYearPages(await getDataAsOfDate()).map((p) => ({ year: String(p.buddhistYear) }));
 }
 
 interface Props {
@@ -34,7 +41,7 @@ interface Props {
 
 async function resolveConfig(params: Props["params"]): Promise<YearPageConfig> {
   const { year } = await params;
-  const config = getYearPageConfig(year);
+  const config = getYearPageConfig(year, await getDataAsOfDate());
   if (!config) notFound();
   return config;
 }
@@ -103,14 +110,15 @@ export default async function YearPage({ params }: Props) {
   const config = await resolveConfig(params);
   const { yearRows, monthlyStats, summaryStats } = await loadYearData(config);
 
-  const isCurrentYear = config.buddhistYear === CURRENT_YEAR_BE;
+  const isCurrentYear = isYearInProgress(config.buddhistYear);
   const isFirstYear = config.buddhistYear === FIRST_YEAR_BE;
   const firstAvailableDate =
     isFirstYear && yearRows.length > 0 ? new Date(yearRows[0].priceDate) : null;
 
-  const currentIndex = YEAR_PAGES.findIndex((p) => p.buddhistYear === config.buddhistYear);
-  const prevPage = currentIndex > 0 ? YEAR_PAGES[currentIndex - 1] : null;
-  const nextPage = currentIndex < YEAR_PAGES.length - 1 ? YEAR_PAGES[currentIndex + 1] : null;
+  const yearPages = listYearPages(await getDataAsOfDate());
+  const currentIndex = yearPages.findIndex((p) => p.buddhistYear === config.buddhistYear);
+  const prevPage = currentIndex > 0 ? yearPages[currentIndex - 1] : null;
+  const nextPage = currentIndex < yearPages.length - 1 ? yearPages[currentIndex + 1] : null;
 
   const path = yearPagePath(config.buddhistYear);
   // Up to the month of this year's newest row, so a month with no data is

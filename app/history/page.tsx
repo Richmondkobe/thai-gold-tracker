@@ -7,7 +7,7 @@ import {
 } from "@/lib/gold-price-queries";
 import { HistoryExplorer } from "@/components/HistoryExplorer";
 import { HistorySummary } from "@/components/HistorySummary";
-import { YEAR_PAGES, yearPagePath } from "@/lib/year-pages";
+import { listYearPages, yearPagePath } from "@/lib/year-pages";
 import { listRecentMonthPages, monthPagePath } from "@/lib/month-pages";
 
 export const revalidate = 3600;
@@ -56,10 +56,12 @@ async function loadSummary(): Promise<HistorySummaryStats | null> {
 
 export default async function HistoryPage() {
   const [history, summary] = await Promise.all([loadHistory(), loadSummary()]);
-  // Ends at the month of the newest row, so it rolls forward by itself and
-  // never links a month that has no data yet.
-  const recentMonths =
-    history.length > 0 ? listRecentMonthPages(12, history[history.length - 1].fetchedAt) : [];
+  // Both lists end at the newest row, so they roll forward by themselves and
+  // never link a month or year that has no data yet. (If the history failed
+  // to load, fall back to the clock so the links are still there.)
+  const asOf = history.length > 0 ? history[history.length - 1].fetchedAt : new Date();
+  const recentMonths = listRecentMonthPages(12, asOf);
+  const yearPages = listYearPages(asOf);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6">
@@ -103,7 +105,7 @@ export default async function HistoryPage() {
       <section>
         <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">ราคาทองรายปี</h2>
         <ul className="mt-3 flex flex-wrap gap-2">
-          {[...YEAR_PAGES].reverse().map((p) => (
+          {[...yearPages].reverse().map((p) => (
             <li key={p.buddhistYear}>
               <Link
                 href={yearPagePath(p.buddhistYear)}

@@ -164,8 +164,9 @@ export default async function MonthPage({ params }: Props) {
 
   const label = `${config.monthName} ${config.buddhistYear}`;
   const path = monthPagePath(config);
-  const { previous, next } = getAdjacentMonthPages(config, await getDataAsOfDate());
-  const hasYearPage = getYearPageConfig(String(config.buddhistYear)) !== null;
+  const asOf = await getDataAsOfDate();
+  const { previous, next } = getAdjacentMonthPages(config, asOf);
+  const hasYearPage = getYearPageConfig(String(config.buddhistYear), asOf) !== null;
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6">
