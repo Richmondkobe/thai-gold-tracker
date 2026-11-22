@@ -11,6 +11,7 @@ import { TRUST_PAGES } from "@/lib/trust-pages";
 import { isCurrentYear, listYearPages, yearPagePath } from "@/lib/year-pages";
 import { isCurrentMonth, listMonthPages, monthPagePath } from "@/lib/month-pages";
 import { getReportPageByDate, reportPagePath } from "@/lib/report-pages";
+import { WIDGET_PAGE_PATH, WIDGET_PAGE_UPDATED_AT } from "@/lib/widget";
 import { toBangkokDateString } from "@/lib/bangkok";
 
 // Generated on EVERY request - deliberately not cached. With a cached (ISR)
@@ -27,7 +28,7 @@ export const dynamic = "force-dynamic";
 //   - pages that follow the live price ........ time of the newest stored price
 //   - a finished month or year ................ time of its last price
 //   - a daily report .......................... time of that day's last price
-//   - articles and trust pages ................ their hand-maintained updatedAt
+//   - articles, trust pages, the widget page .. their hand-maintained updatedAt
 // If the price history can't be read, the price-driven entries are emitted
 // with NO lastmod rather than a made-up one.
 
@@ -151,6 +152,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: latestPrice,
       changeFrequency: "daily",
       priority: 0.7,
+    },
+    {
+      // Static text; the live prices are inside the widget's iframe, which is
+      // not a page of its own and is not listed.
+      url: `${SITE_URL}${encodeURI(WIDGET_PAGE_PATH)}`,
+      lastModified: WIDGET_PAGE_UPDATED_AT,
+      changeFrequency: "monthly",
+      priority: 0.5,
     },
     ...TRUST_PAGES.map((p) => ({
       url: `${SITE_URL}${encodeURI(p.pathTh)}`,

@@ -54,6 +54,12 @@ const nextConfig: NextConfig = {
         destination: "/gold-profit",
       },
       {
+        // The embeddable widget's page (lib/widget.ts). The widget itself is
+        // served from /embed/gold-price/... and needs no rewrite.
+        source: `/${encodeURIComponent("วิดเจ็ตราคาทอง")}`,
+        destination: "/gold-widget",
+      },
+      {
         source: `/${encodeURIComponent("เกี่ยวกับเรา")}`,
         destination: "/site-info/about",
       },
@@ -134,6 +140,17 @@ const nextConfig: NextConfig = {
       {
         source: "/gold-profit",
         destination: "/คำนวณกำไรขาดทุนทอง",
+        permanent: true,
+      },
+      {
+        source: "/gold-widget",
+        destination: "/วิดเจ็ตราคาทอง",
+        permanent: true,
+      },
+      {
+        // Short ASCII alias, easy to type and to say.
+        source: "/widget",
+        destination: "/วิดเจ็ตราคาทอง",
         permanent: true,
       },
       {

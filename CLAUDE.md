@@ -312,6 +312,46 @@ content and no deploy per day.
 - Article + BreadcrumbList JSON-LD; `datePublished` = the day's first announcement,
   `dateModified` = its latest.
 
+## Embeddable widget (`/วิดเจ็ตราคาทอง`, alias `/widget`)
+
+A free gold price widget other sites paste into their pages. Everything about it is
+in `lib/widget.ts` (sizes, themes, URLs, the embed code).
+
+- **The widget itself** is `app/embed/gold-price/[variant]/route.ts`, e.g.
+  `/embed/gold-price/sidebar-light` (`sidebar|banner|mobile` x `light|dark`; anything
+  else 404s). A Route Handler returning one hand-written HTML string, about 4 KB: no
+  root layout, no React, no JavaScript, no images, no cookies, no external requests,
+  system fonts. A `Content-Security-Policy` of `default-src 'none'` (inline CSS only,
+  `frame-ancestors *`) enforces that. `X-Robots-Tag: noindex`. Keep it script-free.
+- **Caching.** Dynamic handler with `Cache-Control: public, max-age=60, s-maxage=60`,
+  deliberately NOT ISR: ISR serves a stale copy to the first visitor after a quiet
+  spell, which for a price on a low-traffic blog could be hours old. A CDN miss costs
+  two small reads. The document also reloads itself every 5 minutes (meta refresh).
+- **What it shows.** All four prices (never a partial card), ทองคำแท่ง ขายออก against
+  the previous price and against the last daily close before today, the latest
+  announcement's date and time and its official number
+  (`LatestGoldPriceRow.announcementSeq`), and the brand name linking to the homepage.
+- **Layouts** follow the iframe's own size: a card (sidebar 300x300, mobile up to
+  480x300; type steps down below 280px wide), a one-row banner (728x130), and below
+  660px wide a compact table version of the banner in the same height. If you change
+  a height in `lib/widget.ts`, change the CSS with it and re-check each size at its
+  narrowest width.
+- **Embed code** (`buildWidgetEmbedCode`): a wrapper `<div>` with a max-width, the
+  `<iframe>` filling it at a fixed height, and a credit line in the HOST page:
+  "ราคาทองจาก ThaiGoldTracker", where only the brand name is the link (plain visible
+  link to the homepage, `rel="noopener"`). **Keep the anchor branded - never turn it
+  into a keyword phrase.** Inline styles only, no `<script>`, so it works in
+  WordPress's Custom HTML block and Blogger's HTML/JavaScript gadget. The iframe's
+  inline style resets margin, padding, border, max-width and height because themes
+  ship global `iframe {}` rules; tested on a plain page with such rules, at desktop
+  and phone widths. **Never change the `/embed/gold-price/...` URLs or remove a
+  variant** - code already pasted on other people's sites depends on them.
+- **Widget page** `app/gold-widget/page.tsx` (static): explanation, the
+  `WidgetBuilder` client component (size/theme picker, live preview using the embed
+  code's own markup, copy button), install steps, FAQ with FAQPage JSON-LD. Linked
+  from the site footer and the homepage, in the sitemap with the hand-maintained
+  `WIDGET_PAGE_UPDATED_AT` (bump it when the page's text changes).
+
 ## Explicitly out of scope (v2)
 
 LINE integration, user accounts, fuel/currency price tracking. Do not implement these unless asked.

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TRUST_PAGES } from "@/lib/trust-pages";
+import { WIDGET_PAGE_PATH } from "@/lib/widget";
 
 export function SiteFooter() {
   return (
@@ -17,6 +18,14 @@ export function SiteFooter() {
                 </Link>
               </li>
             ))}
+            <li>
+              <Link
+                href={WIDGET_PAGE_PATH}
+                className="text-sm text-gray-600 hover:text-amber-600 dark:text-gray-400 dark:hover:text-amber-400"
+              >
+                วิดเจ็ตราคาทอง
+              </Link>
+            </li>
           </ul>
         </nav>
         <p className="text-xs text-gray-500 dark:text-gray-500">

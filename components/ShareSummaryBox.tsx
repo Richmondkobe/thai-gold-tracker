@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
+import { useCopyText } from "@/components/useCopyText";
 
 /**
  * The "share this" box on a daily report: a short ready-made summary and a
@@ -10,39 +11,8 @@ import { useEffect, useRef, useState } from "react";
  * (not a textarea) so all of it is visible at any screen width.
  */
 export function ShareSummaryBox({ text }: { text: string }) {
-  const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
   const textRef = useRef<HTMLParagraphElement>(null);
-  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (resetTimer.current) clearTimeout(resetTimer.current);
-    };
-  }, []);
-
-  async function copy() {
-    let copied = false;
-    try {
-      await navigator.clipboard.writeText(text);
-      copied = true;
-    } catch {
-      // Older browsers and some in-app browsers (LINE's among them) have no
-      // async clipboard: select the text and use the legacy command instead.
-      const selection = window.getSelection();
-      if (textRef.current && selection) {
-        selection.selectAllChildren(textRef.current);
-        try {
-          copied = document.execCommand("copy");
-        } catch {
-          copied = false;
-        }
-      }
-    }
-
-    setStatus(copied ? "copied" : "failed");
-    if (resetTimer.current) clearTimeout(resetTimer.current);
-    resetTimer.current = setTimeout(() => setStatus("idle"), 4000);
-  }
+  const { status, copy } = useCopyText(text, textRef);
 
   return (
     <section

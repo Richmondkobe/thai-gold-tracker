@@ -23,6 +23,7 @@ import { GUIDE_PAGES, guidePagePath } from "@/lib/guide-pages";
 import { listMonthPages, monthPagePath } from "@/lib/month-pages";
 import { listYearPages, yearPagePath } from "@/lib/year-pages";
 import { getReportPageByDate, reportPagePath } from "@/lib/report-pages";
+import { WIDGET_PAGE_PATH } from "@/lib/widget";
 import { IntradayTable } from "@/components/IntradayTable";
 import { PriceChart } from "@/components/PriceChart";
 import { FaqSection } from "@/components/FaqSection";
@@ -279,6 +280,22 @@ export default async function HomePage() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section
+        aria-labelledby="widget-heading"
+        className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900"
+      >
+        <h2 id="widget-heading" className="text-xl font-bold text-gray-900 dark:text-gray-50">
+          มีเว็บไซต์หรือบล็อกของตัวเอง?
+        </h2>
+        <p className="mt-1 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+          นำราคาทองวันนี้ไปแสดงบนเว็บไซต์ของคุณได้ฟรี ไม่ต้องสมัครสมาชิก
+          และอัปเดตเองทุกครั้งที่สมาคมค้าทองคำประกาศราคาใหม่
+        </p>
+        <Link href={WIDGET_PAGE_PATH} className={`mt-3 inline-block text-sm font-medium ${TEXT_LINK_CLASS}`}>
+          รับวิดเจ็ตราคาทองฟรี →
+        </Link>
       </section>
 
       <FaqSection items={homeFaqItems} />
