@@ -27,11 +27,11 @@ Rank on Google Thailand for **ราคาทองวันนี้** (gold pr
 One `cron.schedule(...)` job, `fetch-gold-prices` (run manually via the SQL editor,
 not committed — it embeds `CRON_SECRET`): `"*/2 * * * *"`, every 2 minutes around
 the clock (jobid 2). It calls `net.http_post()` against the deployed `fetch-prices`
-Edge Function. Most runs are cheap no-ops: when the four prices match the latest row
-nothing is inserted and no alerts fire; the only write is a `last_announced_at` stamp
-when GTA has re-announced the same prices at a newer time (see "Official announcement
-time" below). Only a genuinely new price inserts a row and fires browser pushes and
-price alerts.
+Edge Function. Most runs are cheap no-ops: one small request to GTA's `/Latest`, one
+read, and when its `asTime` is not newer than what is stored, nothing else. Only when
+GTA has announced something new does the run fetch the day's full announcement list
+and write (see "Storing every announcement" below). Only a genuinely new current price
+fires browser pushes and price alerts, once per run.
 (Verified against live `cron.job` 2026-11-11, when it was changed from `*/30` with
 `cron.alter_job`.)
 
@@ -51,6 +51,45 @@ Things that follow from the 2-minute cadence:
   push/email goes out the moment the fetcher sees it, and a notification tapped
   straight away can briefly land on the previous price. On-demand revalidation from
   the Edge Function would close that gap; it is not built.
+
+## Storing every announcement (fetch-prices)
+
+GTA can announce several times inside one 2-minute polling gap (2026-11-20: 90
+announcements, 14 never seen by polling `/Latest`), so `/Latest` alone loses prices.
+
+- **Flow.** Every run polls `/api/GoldPrices/Latest`. If its `asTime` is newer than the
+  latest row's `last_announced_at ?? fetched_at`, the run also fetches
+  `/api/GoldPricesDaily/pricechanges?StartDate=D&EndDate=D` for that Bangkok day (every
+  announcement, same row shape) and upserts every price change in it (`onConflict:
+  fetched_at`, `ignoreDuplicates`), so announcements missed between polls are stored
+  too. If the list fails (10s timeout, non-200, not an array) the run logs it and stores
+  the latest price alone, exactly the pre-list behaviour. At most ~90 list requests on
+  the busiest day; do not move the list fetch onto every run.
+- **Repeats are not rows.** The list includes announcements whose four prices equal the
+  previous one (19 of 1,967 since 2026-08-01, mostly the first one on a Sunday). They
+  never become rows; see "Official announcement time" below.
+- **`priceSeq`, not `seq`.** `priceSeq` is GTA's official per-day number ("ประกาศครั้งที่").
+  `seq` is only the row number inside the requested range: equal for one day and for
+  `/Latest`, wrong for any longer range.
+- **Notifications.** At most one push/email round per run, only when the newest price
+  change was inserted by this run and is newer than every row stored before it.
+  Recovered older announcements are stored silently. The "previous price" in the push
+  and email is the official previous price change (what the homepage shows as
+  เทียบกับประกาศก่อนหน้า), not the last price a notification was sent for.
+- **Shared logic.** `supabase/functions/_shared/announcements.ts` (parsing, the
+  repeat rule, the column mapping) is pure TypeScript with no imports, used by both the
+  Edge Function and `scripts/backfill-history.ts`. Keep it import-free.
+  `lib/gold-price-store.ts` (local testing only) mirrors just the latest-only path.
+- **Repair.** `POST .../fetch-prices?day=YYYY-MM-DD` (same `CRON_SECRET` bearer) stores
+  one day's announcements from Supabase's side; it never notifies about an old price.
+  From a laptop, `npm run backfill-history -- --from=YYYY-MM-DD [--dry-run]` does the
+  same for a range, and also fills `announcement_seq` and the purity prices on rows
+  that already exist. Run from a worktree it needs the env file:
+  `npx tsx --conditions=react-server --env-file=<repo>/.env.local scripts/backfill-history.ts ...`.
+- **Left alone.** Rows GTA later withdrew (in the table but not in GTA's list, e.g.
+  2026-09-17 15:28 and 2026-11-18 09:30 Bangkok) and the zero-change rows the original
+  2016-onwards backfill stored are never deleted. Before 2026-08-01 `announcement_seq`
+  and the purity prices are null (not backfilled).
 
 ## Price alerts
 
@@ -142,12 +181,20 @@ to Web Push for every price change.
 
 GTA sometimes re-announces identical prices. We never insert a row for that (it would
 add a zero-change line to the intraday table and zero out "เทียบกับประกาศก่อนหน้า"), but the
-fetcher stamps the newer `asTime` onto the existing latest row as
-`gold_prices.last_announced_at` (migration 0008). `fetched_at` keeps meaning "when this
+fetcher stamps the newer `asTime` onto the row it repeats as
+`gold_prices.last_announced_at` (migration 0008) and its official number as
+`last_announced_seq` (migration 0011). `fetched_at` keeps meaning "when this
 price took effect" and still drives the intraday table, charts, daily closes and every
 change calculation. Anything that shows a "last updated" time must use
 `LatestGoldPriceRow.announcedAt` from `getLatestPrices()` (= `last_announced_at ??
 fetched_at`), never `fetchedAt`. The same logic is mirrored in `lib/gold-price-store.ts`.
+
+The official announcement number works the same way: `gold_prices.announcement_seq` is
+the number of the announcement that set the row's prices, and
+`LatestGoldPriceRow.announcementSeq` is the number of the announcement at `announcedAt`
+(`last_announced_seq` after a re-announcement, else `announcement_seq`; null when
+unknown, never the older number). It is NOT the count of rows for the day, because
+repeats are numbered by GTA but have no row.
 
 ## IndexNow (Bing and other participating engines)
 
@@ -196,23 +243,29 @@ Keep meta descriptions at or under 160 characters.
 
 All server-rendered from data already loaded for the page (no extra queries).
 
-- **Purity table** (`components/PurityPriceTable.tsx`, `lib/purity.ts`): only the 96.5%
-  row is an announced price. Every other row is an ESTIMATE of gold-content value,
-  pro rata from the 96.5% bar price (`price x percent / 96.5`; per gram = `/ 15.244`),
-  and the page says so. GTA's feed also carries its own official tax-base buy prices
-  for 99.99/90/80/50/40% ornament gold (`oM9999_BuyPrice`, `oM90_BuyPrice`, ...), which
-  are NOT pro rata (50% is priced at 0.45x, 40% at 0.35x of the 96.5% figure) and are
-  not stored. Storing and showing them would be more authoritative than the estimates.
+- **Official purity table** (`components/OfficialPurityTable.tsx`): GTA's own tax-base
+  buy prices for 99.99/96.5/90/80/50/40% ornament gold, per baht-weight and per gram,
+  from `gold_prices.ornament_buy_9999/_90/_80/_50/_40` (migration 0011; the 96.5% row
+  is `ornament_buy`). Nothing is estimated. They are NOT pro rata (50% is 0.45x and 40%
+  is 0.35x of the 96.5% figure), which the last column shows, computed from the data.
+  Per gram = per baht-weight / 15.16 (ornament gold), which reproduces GTA's
+  `oM*_BuyGPrice` exactly, so per-gram figures are not stored. GTA announces no sell
+  prices for other purities and nothing for 75%. Renders nothing when the latest row
+  has no purity prices.
+- **Estimate table** (`components/PurityPriceTable.tsx`, `lib/purity.ts`), shown under
+  the official one: only the 96.5% row is an announced price. Every other row is an
+  ESTIMATE of gold-content value, pro rata from the 96.5% bar price (`price x percent /
+  96.5`; per gram = `/ 15.244`), and the page says so. Kept because it is the only
+  source for sell-side and 75% figures.
 - **Comparison box** (`components/PriceComparison.tsx`): latest bar sell vs the daily
   close 1, 7 and 30 calendar days before today, falling back to the nearest earlier
   close and showing its date. Needs the 45 daily rows the homepage loads (the chart
   uses the last 30).
-- **Today's summary** (`components/TodaySummary.tsx`): counts the price rows stored
-  today. This is NOT GTA's official "ประกาศครั้งที่": the feed's `seq` field is not
-  stored, and the 2-minute poll of `/Latest` misses announcements that come closer
-  together (2026-11-20: GTA made 90, 76 were stored). Capturing every announcement
-  (e.g. from `/api/GoldPricesDaily/pricechanges` for today) plus `seq` would fix the
-  count, the intraday table and intraday highs/lows together.
+- **Today's summary** (`components/TodaySummary.tsx`): shows GTA's official
+  "ประกาศครั้งที่ N" (`LatestGoldPriceRow.announcementSeq`) when the latest announcement
+  is today's, plus how many of those changed the price (rows stored today, which can
+  be fewer). When the number is unknown it falls back to the row count, labelled as
+  recorded price changes and never as the official number.
 
 ## Explicitly out of scope (v2)
 

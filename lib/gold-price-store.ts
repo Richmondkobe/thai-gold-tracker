@@ -18,7 +18,12 @@ export type InsertResult =
  * When it IS identical but comes from a newer GTA announcement, that
  * announcement's time is recorded on the existing row (last_announced_at,
  * migration 0008) so the displayed update time matches the official one.
- * Mirrors supabase/functions/fetch-prices/index.ts - keep the two in step.
+ *
+ * Local-testing counterpart of supabase/functions/fetch-prices/index.ts, which
+ * is what runs in production. It mirrors that function's latest-price-only
+ * path (what it does when GTA's announcement list is unavailable); it does NOT
+ * recover announcements missed between polls - only the Edge Function and
+ * scripts/backfill-history.ts do that. Keep the stored columns in step.
  */
 export async function insertIfChanged(
   supabase: SupabaseClient,
@@ -26,7 +31,9 @@ export async function insertIfChanged(
 ): Promise<InsertResult> {
   const { data: latestRow, error: selectError } = await supabase
     .from("gold_prices")
-    .select("id, fetched_at, last_announced_at, bar_buy, bar_sell, ornament_buy, ornament_sell")
+    .select(
+      "id, fetched_at, last_announced_at, last_announced_seq, bar_buy, bar_sell, ornament_buy, ornament_sell",
+    )
     .order("fetched_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -49,7 +56,7 @@ export async function insertIfChanged(
     if (snapshot.fetchedAt.getTime() > lastKnownMs) {
       const { error: stampError } = await supabase
         .from("gold_prices")
-        .update({ last_announced_at: fetchedAtIso })
+        .update({ last_announced_at: fetchedAtIso, last_announced_seq: snapshot.seq })
         .eq("id", latestRow.id);
       // Cosmetic only - never fail the run over the display timestamp.
       if (stampError) {
@@ -79,6 +86,12 @@ export async function insertIfChanged(
         ornament_buy: snapshot.ornamentBuy,
         ornament_sell: snapshot.ornamentSell,
         source: "goldtraders",
+        announcement_seq: snapshot.seq,
+        ornament_buy_9999: snapshot.purity.buy9999,
+        ornament_buy_90: snapshot.purity.buy90,
+        ornament_buy_80: snapshot.purity.buy80,
+        ornament_buy_50: snapshot.purity.buy50,
+        ornament_buy_40: snapshot.purity.buy40,
       },
       { onConflict: "fetched_at", ignoreDuplicates: true, count: "exact" },
     );

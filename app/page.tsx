@@ -14,6 +14,7 @@ import { subtractDaysFromDateString, toBangkokDateString } from "@/lib/bangkok";
 import { PriceCard } from "@/components/PriceCard";
 import { TodaySummary } from "@/components/TodaySummary";
 import { PriceComparison, type PriceComparisonItem } from "@/components/PriceComparison";
+import { OfficialPurityTable } from "@/components/OfficialPurityTable";
 import { PurityPriceTable } from "@/components/PurityPriceTable";
 import { GoldCalculator } from "@/components/GoldCalculator";
 import { WEIGHT_PAGES, weightPagePath } from "@/lib/weight-pages";
@@ -174,7 +175,12 @@ export default async function HomePage() {
             </Link>
           </div>
 
-          <PurityPriceTable latest={current} />
+          <OfficialPurityTable latest={current} />
+
+          <PurityPriceTable
+            latest={current}
+            hasOfficialPrices={current.officialPurityBuy !== null}
+          />
         </>
       ) : (
         <p className="rounded-2xl border border-dashed border-gray-300 p-5 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">

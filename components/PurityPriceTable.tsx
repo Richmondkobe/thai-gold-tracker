@@ -12,8 +12,20 @@ import type { GoldPriceRow } from "@/lib/gold-price-queries";
  * Pure server-rendered table: estimated prices by gold purity, worked out
  * from the latest official 96.5% bar price. Only the 96.5% row is an
  * announced price; the text underneath says so and shows the arithmetic.
+ *
+ * GTA's own official buy prices by purity are a separate table
+ * (OfficialPurityTable), shown above this one when they are stored. This one
+ * stays because it is the only source for sell-side and 75% figures, which
+ * GTA does not announce.
  */
-export function PurityPriceTable({ latest }: { latest: GoldPriceRow }) {
+export function PurityPriceTable({
+  latest,
+  hasOfficialPrices = false,
+}: {
+  latest: GoldPriceRow;
+  /** True when OfficialPurityTable (GTA's own buy prices) is rendered above. */
+  hasOfficialPrices?: boolean;
+}) {
   const exampleSell = estimatePriceByPurity(latest.barSell, 90);
 
   return (
@@ -24,6 +36,8 @@ export function PurityPriceTable({ latest }: { latest: GoldPriceRow }) {
       <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
         มูลค่าทองคำแต่ละเปอร์เซ็นต์โดยประมาณ คิดจากราคาทองคำแท่ง 96.5%
         ที่สมาคมค้าทองคำประกาศล่าสุด หน่วยเป็นบาท
+        {hasOfficialPrices &&
+          " สำหรับราคารับซื้อที่สมาคมประกาศจริงของทอง 99.99% 90% 80% 50% และ 40% ดูได้จากตารางด้านบน"}
       </p>
 
       {/* Sized to fit a phone without sideways scrolling (smaller text, two-line

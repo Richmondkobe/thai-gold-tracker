@@ -9,27 +9,57 @@
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { type PushStats, sendPushToAll } from "../_shared/push.ts";
+import {
+  type Announcement,
+  bangkokDay,
+  insertColumns,
+  parseAnnouncement,
+  planAnnouncements,
+  type Reannouncement,
+} from "../_shared/announcements.ts";
 
+// The cheap poll, every run: GTA's current price as one small JSON object.
 const LATEST_URL =
   "https://www.goldtraders.or.th/api/GoldPrices/Latest?readjson=false";
 
-const MIN_SANE_PRICE = 10_000;
-const MAX_SANE_PRICE = 100_000;
+// Every announcement in a date range (the endpoint behind GTA's own
+// "ราคาทองย้อนหลัง" page, also used by scripts/backfill-history.ts). Fetched for
+// ONE day, and only on a run where /Latest shows an announcement we have not
+// seen: GTA can announce several times inside one 2-minute polling gap (90
+// announcements on 2026-11-20, 14 of them never seen by /Latest polling), and
+// this list is what recovers the ones in between. Most runs never call it.
+const HISTORY_URL = "https://www.goldtraders.or.th/api/GoldPricesDaily/pricechanges";
+const HISTORY_TIMEOUT_MS = 10_000;
 
-function isSanePrice(value: unknown): value is number {
-  return (
-    typeof value === "number" &&
-    Number.isFinite(value) &&
-    value > MIN_SANE_PRICE &&
-    value < MAX_SANE_PRICE
-  );
-}
+/** All of one Bangkok day's announcements. Throws on any failure - the caller
+ *  falls back to storing just the latest price. */
+async function fetchDayAnnouncements(day: string): Promise<Announcement[]> {
+  const response = await fetch(`${HISTORY_URL}?StartDate=${day}&EndDate=${day}`, {
+    headers: { accept: "application/json" },
+    signal: AbortSignal.timeout(HISTORY_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    const bodySnippet = (await response.text().catch(() => "")).slice(0, 200);
+    throw new Error(`history endpoint returned HTTP ${response.status}: ${bodySnippet}`);
+  }
 
-// GTA's `asTime` field has no timezone suffix (e.g. "2026-08-04T16:15:00") and is Bangkok local time.
-function parseBangkokTime(asTime: unknown): Date | null {
-  if (typeof asTime !== "string") return null;
-  const date = new Date(`${asTime}+07:00`);
-  return Number.isNaN(date.getTime()) ? null : date;
+  const data = await response.json();
+  if (!Array.isArray(data)) {
+    throw new Error(`history endpoint returned ${typeof data}, expected an array`);
+  }
+
+  const announcements: Announcement[] = [];
+  let rejected = 0;
+  for (const raw of data) {
+    const announcement = parseAnnouncement(raw);
+    // The day check guards against the endpoint ever ignoring the date range.
+    if (announcement && bangkokDay(announcement.time) === day) announcements.push(announcement);
+    else rejected++;
+  }
+  if (rejected > 0) {
+    console.error(`[fetch-prices] history for ${day}: ${rejected} row(s) failed validation and were ignored`);
+  }
+  return announcements;
 }
 
 // ---------------------------------------------------------------------------
@@ -540,14 +570,89 @@ async function fireAlerts(supabase: Db, price: NewPrice): Promise<AlertStats> {
   return stats;
 }
 
+/** The stored columns the run needs from a gold_prices row. */
+interface StoredRow {
+  id: number;
+  fetched_at: string;
+  last_announced_at: string | null;
+  last_announced_seq: number | null;
+  bar_buy: number | string;
+  bar_sell: number | string;
+  ornament_buy: number | string;
+  ornament_sell: number | string;
+}
+
+const STORED_ROW_COLUMNS =
+  "id, fetched_at, last_announced_at, last_announced_seq, bar_buy, bar_sell, ornament_buy, ornament_sell";
+
+/**
+ * Records, on the row whose prices it repeats, a later announcement that left
+ * them unchanged (migration 0008 explains why that is a column and not a new
+ * row; 0011 adds the announcement number). Only ever moves the time forward.
+ * Never throws: it is the displayed "อัปเดตล่าสุด" time and announcement number,
+ * not a price, and must not fail a run. Returns true when something was written.
+ */
+async function stampReannouncement(
+  supabase: Db,
+  fetchedAtIso: string,
+  reannouncement: Reannouncement,
+): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from("gold_prices")
+      .select("id, last_announced_at, last_announced_seq")
+      .eq("fetched_at", fetchedAtIso)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return false;
+
+    const storedMs = data.last_announced_at ? new Date(data.last_announced_at).getTime() : -Infinity;
+    const newMs = reannouncement.at.getTime();
+    const isNewer = newMs > storedMs;
+    // Same announcement, stamped before the number was stored: add the number.
+    const fillsSeq =
+      newMs === storedMs && data.last_announced_seq === null && reannouncement.seq !== null;
+    if (!isNewer && !fillsSeq) return false;
+
+    const { error: updateError } = await supabase
+      .from("gold_prices")
+      .update({
+        last_announced_at: reannouncement.at.toISOString(),
+        last_announced_seq: reannouncement.seq,
+      })
+      .eq("id", data.id);
+    if (updateError) throw new Error(updateError.message);
+    return true;
+  } catch (err) {
+    console.error(
+      "[fetch-prices] failed to record the re-announcement:",
+      err instanceof Error ? err.message : err,
+    );
+    return false;
+  }
+}
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
 Deno.serve(async (req) => {
   const authHeader = req.headers.get("authorization");
   const cronSecret = Deno.env.get("CRON_SECRET");
   if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { "content-type": "application/json" },
-    });
+    return json({ error: "Unauthorized" }, 401);
+  }
+
+  // Manual repair hook, never used by the cron job: ?day=YYYY-MM-DD stores
+  // every announcement of that Bangkok day, whether or not /Latest has moved.
+  // It goes through exactly the same steps as a normal run, so it cannot
+  // notify anyone about an old price (see isNewLatestPrice below).
+  const dayParam = new URL(req.url).searchParams.get("day");
+  if (dayParam !== null && !/^\d{4}-\d{2}-\d{2}$/.test(dayParam)) {
+    return json({ error: "day must be YYYY-MM-DD" }, 400);
   }
 
   try {
@@ -561,22 +666,19 @@ Deno.serve(async (req) => {
     }
 
     const raw = await response.json();
-    const barBuy = raw.bL_BuyPrice;
-    const barSell = raw.bL_SellPrice;
-    const ornamentBuy = raw.oM965_BuyPrice;
-    const ornamentSell = raw.oM965_SellPrice;
-
-    const prices = { barBuy, barSell, ornamentBuy, ornamentSell };
-    const invalid = Object.entries(prices).filter(([, v]) => !isSanePrice(v));
-    if (invalid.length > 0) {
+    const latest = parseAnnouncement(raw);
+    if (!latest) {
       throw new Error(
-        `parsed prices failed sanity check (expected ${MIN_SANE_PRICE}-${MAX_SANE_PRICE}): ${JSON.stringify(prices)}`,
+        `latest price failed validation (four prices within the sane range, valid asTime): ${
+          JSON.stringify({
+            bL_BuyPrice: raw?.bL_BuyPrice,
+            bL_SellPrice: raw?.bL_SellPrice,
+            oM965_BuyPrice: raw?.oM965_BuyPrice,
+            oM965_SellPrice: raw?.oM965_SellPrice,
+            asTime: raw?.asTime,
+          })
+        }`,
       );
-    }
-
-    const fetchedAt = parseBangkokTime(raw.asTime);
-    if (!fetchedAt) {
-      throw new Error(`missing/invalid asTime: ${JSON.stringify(raw.asTime)}`);
     }
 
     const supabase = createClient(
@@ -584,116 +686,186 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { data: latestRow, error: selectError } = await supabase
+    const { data: latestData, error: selectError } = await supabase
       .from("gold_prices")
-      .select("id, fetched_at, last_announced_at, bar_buy, bar_sell, ornament_buy, ornament_sell")
+      .select(STORED_ROW_COLUMNS)
       .order("fetched_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (selectError) throw new Error(`failed to read latest row: ${selectError.message}`);
+    const latestRow = latestData as StoredRow | null;
 
-    const fetchedAtIso = fetchedAt.toISOString();
+    const latestIso = latest.time.toISOString();
 
-    if (
-      latestRow &&
-      Number(latestRow.bar_buy) === barBuy &&
-      Number(latestRow.bar_sell) === barSell &&
-      Number(latestRow.ornament_buy) === ornamentBuy &&
-      Number(latestRow.ornament_sell) === ornamentSell
-    ) {
-      // Same four prices as the row we already have: no new row, no alerts.
-      // But if GTA has issued a NEWER announcement repeating these prices,
-      // record its time on the existing row so the site's "อัปเดตล่าสุด"
-      // matches the official one (migration 0008 explains why it's a column
-      // and not a new row). Off-hours polls see the same asTime again and
-      // write nothing.
-      const lastKnownMs = new Date(
-        latestRow.last_announced_at ?? latestRow.fetched_at,
-      ).getTime();
-      let announcementTimeUpdated = false;
-      if (fetchedAt.getTime() > lastKnownMs) {
-        const { error: stampError } = await supabase
-          .from("gold_prices")
-          .update({ last_announced_at: fetchedAtIso })
-          .eq("id", latestRow.id);
-        if (stampError) {
-          // Cosmetic only - never fail the run over the display timestamp.
-          console.error(
-            "[fetch-prices] failed to update last_announced_at:",
-            stampError.message,
-          );
-        } else {
-          announcementTimeUpdated = true;
-        }
+    // The newest announcement we already know about: the latest row's own
+    // time, or the time of a later announcement that repeated its prices.
+    const knownMs = latestRow
+      ? new Date(latestRow.last_announced_at ?? latestRow.fetched_at).getTime()
+      : -Infinity;
+
+    if (latest.time.getTime() <= knownMs && dayParam === null) {
+      // Nothing announced since the last run - the case for almost every
+      // poll, and all of them off-hours. One request to GTA, one read, no
+      // writes, no notifications.
+      return json({
+        status: "skipped",
+        reason: "unchanged",
+        fetchedAt: latestIso,
+        announcementTimeUpdated: false,
+      });
+    }
+
+    // GTA has announced something new. Fetch the whole day's list, so that
+    // announcements made between two polls are stored too, not just the one
+    // /Latest happens to show now. If the list cannot be had, carry on with
+    // the latest announcement alone: that is exactly what this function did
+    // before the list existed, and a missed intermediate price must never
+    // cost us the current one.
+    const day = dayParam ?? bangkokDay(latest.time);
+    let announcements: Announcement[] = [latest];
+    let history: { status: "ok"; day: string; announcements: number } | {
+      status: "failed";
+      error: string;
+    };
+    try {
+      const list = await fetchDayAnnouncements(day);
+      // The list can lag /Latest by a moment; never lose the price in hand.
+      if (dayParam === null && !list.some((a) => a.time.getTime() === latest.time.getTime())) {
+        list.push(latest);
       }
+      announcements = list;
+      history = { status: "ok", day, announcements: list.length };
+    } catch (err) {
+      // An explicit repair run has nothing to fall back to.
+      if (dayParam !== null) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[fetch-prices] could not fetch the announcement list for ${day}; storing the latest price only: ${message}`,
+      );
+      history = { status: "failed", error: message };
+    }
 
-      return new Response(
-        JSON.stringify({
-          status: "skipped",
-          reason: "unchanged",
-          fetchedAt: fetchedAtIso,
-          announcementTimeUpdated,
-        }),
-        { headers: { "content-type": "application/json" } },
+    if (announcements.length === 0) {
+      return json({ status: "skipped", reason: "no announcements", fetchedAt: latestIso, history });
+    }
+
+    // The price in force just before the first announcement being processed:
+    // what that announcement is compared against to tell a price change from
+    // an unchanged repeat.
+    const firstMs = Math.min(...announcements.map((a) => a.time.getTime()));
+    const { data: baselineData, error: baselineError } = await supabase
+      .from("gold_prices")
+      .select(STORED_ROW_COLUMNS)
+      .lt("fetched_at", new Date(firstMs).toISOString())
+      .order("fetched_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (baselineError) throw new Error(`failed to read baseline row: ${baselineError.message}`);
+    const baselineRow = baselineData as StoredRow | null;
+
+    const plan = planAnnouncements(
+      announcements,
+      baselineRow
+        ? {
+          barBuy: Number(baselineRow.bar_buy),
+          barSell: Number(baselineRow.bar_sell),
+          ornamentBuy: Number(baselineRow.ornament_buy),
+          ornamentSell: Number(baselineRow.ornament_sell),
+        }
+        : null,
+    );
+
+    // Upsert (not plain insert): gold_prices.fetched_at has a unique constraint
+    // (migrations/0004_gold_prices_unique_fetched_at.sql), so the rows of the
+    // day that are already stored are skipped at the DB level and only the
+    // genuinely new ones come back from .select().
+    const insertedMs = new Set<number>();
+    if (plan.rows.length > 0) {
+      const { data: insertedRows, error: upsertError } = await supabase
+        .from("gold_prices")
+        .upsert(plan.rows.map(insertColumns), { onConflict: "fetched_at", ignoreDuplicates: true })
+        .select("fetched_at");
+
+      if (upsertError) throw new Error(`upsert failed: ${upsertError.message}`);
+      for (const row of insertedRows ?? []) insertedMs.add(new Date(row.fetched_at).getTime());
+    }
+
+    // If the newest announcement only repeated the newest price, record its
+    // time and number on that price's row, so the site's "อัปเดตล่าสุด" and
+    // "ประกาศครั้งที่" match the official ones. (A row inserted just now already
+    // carries them.)
+    const newest = plan.rows[plan.rows.length - 1];
+    let announcementTimeUpdated = false;
+    if (newest) {
+      if (newest.reannouncement && !insertedMs.has(newest.announcement.time.getTime())) {
+        announcementTimeUpdated = await stampReannouncement(
+          supabase,
+          newest.announcement.time.toISOString(),
+          newest.reannouncement,
+        );
+      }
+    } else if (plan.baselineReannouncement && baselineRow) {
+      announcementTimeUpdated = await stampReannouncement(
+        supabase,
+        new Date(baselineRow.fetched_at).toISOString(),
+        plan.baselineReannouncement,
       );
     }
 
-    // Upsert (not plain insert): gold_prices.fetched_at has a unique constraint
-    // (migrations/0004_gold_prices_unique_fetched_at.sql), shared with
-    // scripts/backfill-history.ts. The price-comparison check above already
-    // catches the common case, but this makes the insert itself idempotent at
-    // the DB level too, instead of throwing a constraint-violation 500 if this
-    // exact timestamp somehow already exists.
-    const { error: upsertError, count } = await supabase
-      .from("gold_prices")
-      .upsert(
-        {
-          fetched_at: fetchedAtIso,
-          bar_buy: barBuy,
-          bar_sell: barSell,
-          ornament_buy: ornamentBuy,
-          ornament_sell: ornamentSell,
-          source: "goldtraders",
-        },
-        { onConflict: "fetched_at", ignoreDuplicates: true, count: "exact" },
-      );
+    // Notify once per run at most, and only for a genuinely new CURRENT
+    // price: the newest price change was inserted by this run and is newer
+    // than anything stored before it. Older announcements recovered from the
+    // list are stored silently - nobody wants five pushes for prices that
+    // have already been replaced. The rows are safely stored by this point.
+    // Browser push goes first (free, fast, no Resend quota), then the emails;
+    // neither function ever throws, so one channel failing cannot affect the
+    // other or the stored prices.
+    const isNewLatestPrice = newest !== undefined &&
+      insertedMs.has(newest.announcement.time.getTime()) &&
+      (!latestRow ||
+        newest.announcement.time.getTime() > new Date(latestRow.fetched_at).getTime());
 
-    if (upsertError) throw new Error(`upsert failed: ${upsertError.message}`);
+    let pushStats: PushStats | undefined;
+    let alertStats: AlertStats | undefined;
+    if (newest && isNewLatestPrice) {
+      // "Previous" is the official previous price change - the same figure the
+      // homepage shows as "เทียบกับประกาศก่อนหน้า" - not the last price we
+      // happened to notify about.
+      const before = plan.rows[plan.rows.length - 2];
+      const newPrice: NewPrice = {
+        barBuy: newest.announcement.barBuy,
+        barSell: newest.announcement.barSell,
+        ornamentBuy: newest.announcement.ornamentBuy,
+        ornamentSell: newest.announcement.ornamentSell,
+        fetchedAt: newest.announcement.time,
+        previousBarSell: before
+          ? before.announcement.barSell
+          : baselineRow
+          ? Number(baselineRow.bar_sell)
+          : null,
+      };
+      pushStats = await sendPricePush(supabase, newPrice);
+      alertStats = await fireAlerts(supabase, newPrice);
+    }
 
-    const inserted = Boolean(count && count > 0);
-
-    // Only a genuinely new price notifies anyone, and the row is already
-    // safely stored by this point. Browser push goes first (free, fast, no
-    // Resend quota), then the emails; neither function ever throws, so one
-    // channel failing cannot affect the other or the stored price.
-    const newPrice: NewPrice = {
-      barBuy,
-      barSell,
-      ornamentBuy,
-      ornamentSell,
-      fetchedAt,
-      previousBarSell: latestRow ? Number(latestRow.bar_sell) : null,
-    };
-    const pushStats = inserted ? await sendPricePush(supabase, newPrice) : undefined;
-    const alertStats = inserted ? await fireAlerts(supabase, newPrice) : undefined;
-
-    return new Response(
-      JSON.stringify({
-        status: inserted ? "inserted" : "skipped",
-        reason: inserted ? undefined : "duplicate fetched_at",
-        fetchedAt: fetchedAtIso,
-        push: pushStats,
-        alerts: alertStats,
-      }),
-      { headers: { "content-type": "application/json" } },
-    );
+    const inserted = insertedMs.size;
+    return json({
+      status: inserted > 0 ? "inserted" : "skipped",
+      reason: inserted > 0 ? undefined : plan.rows.length > 0 ? "already stored" : "unchanged",
+      fetchedAt: latestIso,
+      inserted,
+      priceChanges: plan.rows.length,
+      announcementTimeUpdated,
+      notified: isNewLatestPrice,
+      history,
+      push: pushStats,
+      alerts: alertStats,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[fetch-prices]", message);
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { "content-type": "application/json" },
-    });
+    return json({ error: message }, 500);
   }
 });

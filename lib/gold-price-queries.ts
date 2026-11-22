@@ -10,6 +10,19 @@ export interface GoldPriceRow {
   ornamentSell: number;
 }
 
+/**
+ * GTA's official tax-base buy prices for ornament gold of other purities, per
+ * baht-weight (gold_prices.ornament_buy_*, migration 0011). These are GTA's
+ * own announced figures, not pro-rata estimates. Any of them can be missing.
+ */
+export interface OfficialPurityBuy {
+  buy9999: number | null;
+  buy90: number | null;
+  buy80: number | null;
+  buy50: number | null;
+  buy40: number | null;
+}
+
 /** The current price, as returned by getLatestPrices. */
 export interface LatestGoldPriceRow extends GoldPriceRow {
   /**
@@ -20,6 +33,15 @@ export interface LatestGoldPriceRow extends GoldPriceRow {
    * (intraday table, charts, change calculations).
    */
   announcedAt: Date;
+  /**
+   * GTA's official number for the announcement at announcedAt: "ประกาศครั้งที่ N"
+   * of that Bangkok day (migration 0011). Null when it was not recorded. It is
+   * NOT the number of rows stored for the day - announcements that repeat the
+   * previous prices are numbered by GTA but never become rows.
+   */
+  announcementSeq: number | null;
+  /** Null when none of the official purity prices is stored for this row. */
+  officialPurityBuy: OfficialPurityBuy | null;
 }
 
 export interface DailyGoldPriceRow {
@@ -60,15 +82,48 @@ function toRow(row: GoldPriceQueryRow): GoldPriceRow {
   };
 }
 
-function toLatestRow(
-  row: GoldPriceQueryRow & { last_announced_at: string | null },
-): LatestGoldPriceRow {
+interface LatestGoldPriceQueryRow extends GoldPriceQueryRow {
+  last_announced_at: string | null;
+  announcement_seq: number | null;
+  last_announced_seq: number | null;
+  ornament_buy_9999: number | string | null;
+  ornament_buy_90: number | string | null;
+  ornament_buy_80: number | string | null;
+  ornament_buy_50: number | string | null;
+  ornament_buy_40: number | string | null;
+}
+
+const LATEST_COLUMNS =
+  "fetched_at, last_announced_at, announcement_seq, last_announced_seq, " +
+  "bar_buy, bar_sell, ornament_buy, ornament_sell, " +
+  "ornament_buy_9999, ornament_buy_90, ornament_buy_80, ornament_buy_50, ornament_buy_40";
+
+function toNullableNumber(value: number | string | null): number | null {
+  return value === null ? null : Number(value);
+}
+
+function toLatestRow(row: LatestGoldPriceQueryRow): LatestGoldPriceRow {
   const base = toRow(row);
   const reannouncedAt = row.last_announced_at ? new Date(row.last_announced_at) : null;
+  // Never earlier than the price's own timestamp, whatever the column holds.
+  const wasReannounced = reannouncedAt !== null && reannouncedAt > base.fetchedAt;
+
+  const purity: OfficialPurityBuy = {
+    buy9999: toNullableNumber(row.ornament_buy_9999),
+    buy90: toNullableNumber(row.ornament_buy_90),
+    buy80: toNullableNumber(row.ornament_buy_80),
+    buy50: toNullableNumber(row.ornament_buy_50),
+    buy40: toNullableNumber(row.ornament_buy_40),
+  };
+
   return {
     ...base,
-    // Never earlier than the price's own timestamp, whatever the column holds.
-    announcedAt: reannouncedAt && reannouncedAt > base.fetchedAt ? reannouncedAt : base.fetchedAt,
+    announcedAt: wasReannounced ? reannouncedAt : base.fetchedAt,
+    // The number must belong to the announcement at announcedAt. After a
+    // re-announcement that is last_announced_seq - and if that one is missing,
+    // the answer is "unknown", never the older announcement's number.
+    announcementSeq: wasReannounced ? row.last_announced_seq : row.announcement_seq,
+    officialPurityBuy: Object.values(purity).some((value) => value !== null) ? purity : null,
   };
 }
 
@@ -110,12 +165,12 @@ export async function getLatestPrices(limit = 2): Promise<LatestGoldPriceRow[]> 
   const supabase = createPublicClient();
   const { data, error } = await supabase
     .from("gold_prices")
-    .select("fetched_at, last_announced_at, bar_buy, bar_sell, ornament_buy, ornament_sell")
+    .select(LATEST_COLUMNS)
     .order("fetched_at", { ascending: false })
     .limit(limit);
 
   if (error) throw new Error(`getLatestPrices failed: ${error.message}`);
-  return (data ?? []).map(toLatestRow);
+  return ((data ?? []) as unknown as LatestGoldPriceQueryRow[]).map(toLatestRow);
 }
 
 /**

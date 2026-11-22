@@ -21,9 +21,31 @@ export interface GoldPriceSnapshot {
   barSell: number;
   ornamentBuy: number;
   ornamentSell: number;
+  /** GTA's official per-day announcement number (the feed's priceSeq), if present. */
+  seq: number | null;
+  /** GTA's official tax-base buy prices per baht-weight by purity (migration 0011). */
+  purity: {
+    buy9999: number | null;
+    buy90: number | null;
+    buy80: number | null;
+    buy50: number | null;
+    buy40: number | null;
+  };
 }
 
-/** Shared with scripts/backfill-history.ts, which hits a different GTA endpoint with the same field shape. */
+// Extra detail, never worth failing a fetch over: anything implausible is null.
+function optionalPrice(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 && value < 2 * MAX_SANE_PRICE
+    ? value
+    : null;
+}
+
+function optionalSeq(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 && value < 10_000
+    ? value
+    : null;
+}
+
 export function isSanePrice(value: unknown): value is number {
   return (
     typeof value === "number" &&
@@ -107,5 +129,13 @@ export async function fetchLatestGoldPrice(): Promise<GoldPriceSnapshot> {
     barSell: barSell as number,
     ornamentBuy: ornamentBuy as number,
     ornamentSell: ornamentSell as number,
+    seq: optionalSeq(raw.priceSeq),
+    purity: {
+      buy9999: optionalPrice(raw.oM9999_BuyPrice),
+      buy90: optionalPrice(raw.oM90_BuyPrice),
+      buy80: optionalPrice(raw.oM80_BuyPrice),
+      buy50: optionalPrice(raw.oM50_BuyPrice),
+      buy40: optionalPrice(raw.oM40_BuyPrice),
+    },
   };
 }

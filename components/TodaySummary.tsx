@@ -7,15 +7,18 @@ import {
 import type { GoldPriceRow, LatestGoldPriceRow } from "@/lib/gold-price-queries";
 
 /**
- * Pure server-rendered summary of today so far (ทองคำแท่ง ขายออก): how many
- * times the price has changed, today's high and low, and when it last
- * changed.
+ * Pure server-rendered summary of today so far (ทองคำแท่ง ขายออก): GTA's latest
+ * announcement number, today's high and low, and when the price last changed.
  *
- * "Changes" are the rows stored today. GTA numbers its announcements
- * officially (ประกาศครั้งที่ N), but that number is not stored, and on a very
- * busy day the 2-minute poll can miss announcements that come closer
- * together - so this is labelled as recorded changes, never as the official
- * announcement number.
+ * "ประกาศครั้งที่ N" is GTA's own number for its latest announcement today
+ * (LatestGoldPriceRow.announcementSeq, migration 0011). It is not the number
+ * of rows stored today: an announcement that repeats the previous prices is
+ * numbered by GTA but never becomes a row, so the count of price changes is
+ * shown separately and can be lower.
+ *
+ * When the number is unknown (no announcement yet today, or the row predates
+ * the migration) this falls back to counting the rows stored today, labelled
+ * as recorded price changes and never as the official number.
  */
 export function TodaySummary({
   intraday,
@@ -29,6 +32,9 @@ export function TodaySummary({
   const high = Math.max(...prices);
   const low = Math.min(...prices);
   const changedToday = getMarketStatus(latest.fetchedAt).isToday;
+  // Only a number that belongs to TODAY's latest announcement is shown.
+  const officialSeq = getMarketStatus(latest.announcedAt).isToday ? latest.announcementSeq : null;
+  const changes = intraday.length;
 
   return (
     <section aria-labelledby="today-summary-heading">
@@ -39,7 +45,11 @@ export function TodaySummary({
         สรุปราคาทองวันนี้
       </h2>
       <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <SummaryCell label="เปลี่ยนราคาวันนี้" value={`${intraday.length} ครั้ง`} />
+        {officialSeq !== null ? (
+          <SummaryCell label="ประกาศล่าสุดวันนี้" value={`ครั้งที่ ${officialSeq}`} />
+        ) : (
+          <SummaryCell label="เปลี่ยนราคาวันนี้" value={`${changes} ครั้ง`} />
+        )}
         <SummaryCell label="สูงสุดวันนี้" value={formatThaiPrice(high)} />
         <SummaryCell label="ต่ำสุดวันนี้" value={formatThaiPrice(low)} />
         <SummaryCell
@@ -52,11 +62,24 @@ export function TodaySummary({
         />
       </dl>
       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-        ราคาทองคำแท่งขายออก บาทละ
-        {intraday.length === 0 &&
-          " วันนี้ราคายังไม่เปลี่ยนแปลง ค่าสูงสุดและต่ำสุดจึงเท่ากับราคาล่าสุด"}{" "}
-        จำนวนครั้งนับจากการเปลี่ยนราคาที่ระบบบันทึกได้
-        ซึ่งอาจน้อยกว่าจำนวนประกาศของสมาคมค้าทองคำในวันที่ราคาปรับถี่มาก
+        ราคาทองคำแท่งขายออก บาทละ{" "}
+        {officialSeq !== null ? (
+          <>
+            วันนี้สมาคมค้าทองคำประกาศราคาทองแล้ว {officialSeq} ครั้ง ประกาศครั้งที่ {officialSeq}{" "}
+            เป็นครั้งล่าสุด
+            {changes === 0
+              ? " โดยราคายังไม่เปลี่ยนแปลงจากประกาศครั้งก่อน ค่าสูงสุดและต่ำสุดจึงเท่ากับราคาล่าสุด"
+              : // More rows than announcements would mean a row GTA has since
+                // withdrawn; say nothing rather than print a contradiction.
+                changes <= officialSeq && ` โดยราคาเปลี่ยนแปลง ${changes} ครั้ง`}
+          </>
+        ) : (
+          <>
+            {changes === 0 && "วันนี้ราคายังไม่เปลี่ยนแปลง ค่าสูงสุดและต่ำสุดจึงเท่ากับราคาล่าสุด "}
+            จำนวนครั้งนับจากการเปลี่ยนราคาที่ระบบบันทึกได้
+            ซึ่งอาจต่างจากจำนวนประกาศของสมาคมค้าทองคำ
+          </>
+        )}
       </p>
     </section>
   );
