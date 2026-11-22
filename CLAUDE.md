@@ -216,7 +216,8 @@ Tells search engines about new and changed pages (protocol: indexnow.org/documen
   submits the pages that change every trading day (`/`, `/history`,
   `/gold-price-chart`, the current month page, the current year page) plus any
   sitemap URL not yet in the `indexnow_urls` table (migration 0010), then records
-  those. One POST to `api.indexnow.org`, which shares it with every engine.
+  those. Each new daily report page reaches IndexNow this way, once. One POST to
+  `api.indexnow.org`, which shares it with every engine.
 - **Not on price changes, on purpose.** IndexNow asks sites not to resubmit a URL many
   times a day, and every submission spends crawl quota.
 - **One-off tools.** `scripts/indexnow-submit-sitemap.ts --submit` sends the whole live
@@ -266,6 +267,50 @@ All server-rendered from data already loaded for the page (no extra queries).
   is today's, plus how many of those changed the price (rows stored today, which can
   be fewer). When the number is unknown it falls back to the row count, labelled as
   recorded price changes and never as the official number.
+
+## Daily report pages (`/รายงานราคาทอง/23-พฤศจิกายน-2569`)
+
+One automatic page per trading day, built only from `gold_prices`. No hand-written
+content and no deploy per day.
+
+- **Which days.** A Bangkok calendar day with at least one `gold_prices` row (a price
+  change), from `REPORT_START_DATE` = 2026-11-01 (`lib/report-pages.ts`). Same days as
+  the `daily_gold_prices` view and the month tables. A day on which GTA only repeated
+  the previous prices (most Sundays) has no row and no report; today's report appears
+  with the day's first price change, and its URL 404s before that. Older days are
+  deliberately not built - do not lower the start date without being asked.
+- **Route.** `app/gold-report/[reportSlug]/page.tsx`, ISR 300s, the last 7 days
+  prebuilt. Thai public path via a rewrite in `next.config.ts`, like the month pages.
+  Slug = day (no leading zero) + Thai month name + Buddhist year; any other spelling
+  404s.
+- **Figures** (`lib/daily-report.ts`, `buildDailyReport`, pure): every announcement
+  with its official number and time, open (first announcement), close (last price),
+  high/low of ทองคำแท่ง ขายออก, change vs the previous trading day's close for all four
+  prices, and GTA's official purity buy prices at the close. Rows with no
+  `announcement_seq` on a day whose other rows have one are prices GTA later withdrew
+  and are left out of the report. Known unchanged repeats are listed in grey; only the
+  last repeat of each row is stored, so the table can skip numbers and the page says so.
+  The count the report states is the number of price changes, which is exact.
+- **Text.** The summary paragraph, share text, title and description are templates
+  filled from those figures (`buildReportSummary`, `buildReportShareText`, ...).
+  **Numbers only: never add reasons, outlook or opinion about why the price moved.**
+  A day still in progress says "ราคาล่าสุด" where a finished day says "ปิดที่".
+- **Share box** (`components/ShareSummaryBox.tsx`, client component for the copy button
+  only; the text is server-rendered). Its link is the short ASCII form `/r/23-11-2569`
+  (day-month-Buddhist year), which 308-redirects to the Thai URL through twelve
+  redirects generated in `next.config.ts`. It exists because a Thai URL pasted into
+  LINE or a blog gets cut off or percent-encoded. Never use it as a canonical or in the
+  sitemap.
+- **Links in.** Homepage (under today's summary: today's report once it exists, else
+  the latest one, labelled with its date), each month page (a list of that month's
+  reports), prev/next on every report, and the sitemap (`lastmod` = that day's last
+  price).
+- **IndexNow.** Nothing special: each report is a new sitemap URL, so the daily job
+  submits it once, on the night after its day, when it is complete. Just before
+  submitting, the job calls `revalidatePath("/gold-report/[reportSlug]", "page")` so a
+  copy cached mid-day is not what a search engine fetches.
+- Article + BreadcrumbList JSON-LD; `datePublished` = the day's first announcement,
+  `dateModified` = its latest.
 
 ## Explicitly out of scope (v2)
 

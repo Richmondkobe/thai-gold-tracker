@@ -25,8 +25,13 @@ import { formatThaiDateCompact } from "@/lib/thai-date";
 //      /history, /gold-price-chart, the current month page and the current
 //      year page; and
 //   2. every sitemap URL that has never been submitted before (a new month or
-//      year page, or a page added by a deploy), tracked in the indexnow_urls
-//      table (migration 0010).
+//      year page, a new daily report, or a page added by a deploy), tracked in
+//      the indexnow_urls table (migration 0010).
+// Daily reports (/รายงานราคาทอง/...) need nothing special here: each one is a
+// new sitemap URL, so it is submitted exactly once - on the night after its
+// day, when it is complete. Just before that the job marks every cached
+// report page stale, so the copy of yesterday's report a search engine fetches
+// is the finished one ("ปิดที่"), not one cached mid-day ("ราคาล่าสุด").
 // It is deliberately NOT called on each price change: IndexNow asks sites not
 // to resubmit the same URL many times a day, and every submission spends
 // crawl quota.
@@ -91,6 +96,18 @@ export async function GET(request: Request) {
   }
 
   const homepage = await refreshHomepage();
+
+  // Route pattern + "page": with rewrites, revalidatePath wants the route
+  // file's own path, not the Thai public one. Each page regenerates on its
+  // next visit; nothing is rebuilt here.
+  try {
+    revalidatePath("/gold-report/[reportSlug]", "page");
+  } catch (err) {
+    console.error(
+      "[indexnow] could not mark report pages stale:",
+      err instanceof Error ? err.message : err,
+    );
+  }
 
   const asOf = await getDataAsOfDate();
   const currentMonth = listMonthPages(asOf).at(-1);

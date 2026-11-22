@@ -1,7 +1,7 @@
 import { formatThaiDateCompact, formatThaiPrice, formatThaiTime } from "@/lib/thai-date";
 import { BAHT_TO_GRAM_ORNAMENT } from "@/lib/gold-weight";
 import { REFERENCE_PURITY } from "@/lib/purity";
-import type { LatestGoldPriceRow } from "@/lib/gold-price-queries";
+import type { OfficialPurityBuy } from "@/lib/gold-price-queries";
 
 /** "90", "45", "103.6" - at most one decimal, none when it is a whole number. */
 function formatShare(value: number): string {
@@ -17,10 +17,23 @@ function formatShare(value: number): string {
  * card shows. Per gram is per baht-weight / 15.16, which reproduces GTA's own
  * per-gram figure exactly.
  *
- * Renders nothing when the latest row has no official purity prices (rows
- * stored before the migration), so the page never shows an empty table.
+ * Renders nothing when the row has no official purity prices (rows stored
+ * before the migration), so the page never shows an empty table.
+ *
+ * Used on the homepage (the current price, default wording) and on the daily
+ * report pages (a day's closing price): `intro` replaces the sentence under
+ * the heading, and `estimateTableBelow` says whether PurityPriceTable follows.
  */
-export function OfficialPurityTable({ latest }: { latest: LatestGoldPriceRow }) {
+export function OfficialPurityTable({
+  latest,
+  intro,
+  estimateTableBelow = true,
+}: {
+  /** Structurally satisfied by LatestGoldPriceRow. */
+  latest: { ornamentBuy: number; officialPurityBuy: OfficialPurityBuy | null; announcedAt: Date };
+  intro?: string;
+  estimateTableBelow?: boolean;
+}) {
   const official = latest.officialPurityBuy;
   if (!official) return null;
 
@@ -44,9 +57,8 @@ export function OfficialPurityTable({ latest }: { latest: LatestGoldPriceRow }) 
         ราคารับซื้อทองตามเปอร์เซ็นต์ ตามประกาศสมาคมค้าทองคำ
       </h2>
       <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-        ราคารับซื้อทองรูปพรรณ (ฐานภาษี) แต่ละเปอร์เซ็นต์ที่สมาคมค้าทองคำประกาศล่าสุด เมื่อ{" "}
-        {formatThaiDateCompact(latest.announcedAt)} เวลา {formatThaiTime(latest.announcedAt)}{" "}
-        หน่วยเป็นบาท
+        {intro ??
+          `ราคารับซื้อทองรูปพรรณ (ฐานภาษี) แต่ละเปอร์เซ็นต์ที่สมาคมค้าทองคำประกาศล่าสุด เมื่อ ${formatThaiDateCompact(latest.announcedAt)} เวลา ${formatThaiTime(latest.announcedAt)} หน่วยเป็นบาท`}
       </p>
 
       {/* Same sizing approach as PurityPriceTable: fits a phone without
@@ -116,7 +128,7 @@ export function OfficialPurityTable({ latest }: { latest: LatestGoldPriceRow }) 
         </li>
         <li>
           สมาคมค้าทองคำไม่ได้ประกาศราคาขายออกของทองเปอร์เซ็นต์อื่น และไม่มีราคาสำหรับทอง 75% (18K)
-          ดูมูลค่าโดยประมาณได้จากตารางถัดไป
+          {estimateTableBelow && " ดูมูลค่าโดยประมาณได้จากตารางถัดไป"}
         </li>
         <li>
           ร้านทองแต่ละแห่งอาจรับซื้อในราคาที่ต่างจากราคาประกาศ ควรสอบถามราคาจากร้านก่อนขายทุกครั้ง

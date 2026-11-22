@@ -93,6 +93,11 @@ export function formatThaiWholeNumber(value: number): string {
   return wholeNumberFormatter.format(value);
 }
 
+/** e.g. "57,150" / "55,803.96" / "56,258.80" - satang only when there are any; for prose and share text. */
+export function formatThaiAmount(value: number): string {
+  return Number.isInteger(value) ? wholeNumberFormatter.format(value) : numberFormatter.format(value);
+}
+
 /** e.g. "+100.00" / "-50.00" / "0.00" */
 export function formatThaiChange(value: number): string {
   const sign = value > 0 ? "+" : value < 0 ? "-" : "";

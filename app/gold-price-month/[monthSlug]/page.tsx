@@ -20,6 +20,11 @@ import {
   type MonthPageConfig,
 } from "@/lib/month-pages";
 import { getYearPageConfig, yearPagePath } from "@/lib/year-pages";
+import {
+  getReportPageByDate,
+  reportPagePath,
+  type ReportPageConfig,
+} from "@/lib/report-pages";
 import { PriceChart } from "@/components/PriceChart";
 import { MonthSummary, type MonthSummaryStats } from "@/components/MonthSummary";
 import { MonthDailyTable } from "@/components/MonthDailyTable";
@@ -169,6 +174,12 @@ export default async function MonthPage({ params }: Props) {
   const asOf = await getDataAsOfDate();
   const { previous, next } = getAdjacentMonthPages(config, asOf);
   const hasYearPage = getYearPageConfig(String(config.buddhistYear), asOf) !== null;
+  // Daily reports exist for days with a price row from REPORT_START_DATE on;
+  // `rows` is exactly the month's days with a price row. Months before the
+  // start date get an empty list and no section.
+  const reportPages = rows
+    .map((row) => getReportPageByDate(row.priceDate))
+    .filter((page): page is ReportPageConfig => page !== null);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6">
@@ -250,6 +261,32 @@ export default async function MonthPage({ params }: Props) {
               ราคาบาทละ (บาท) เป็นราคาปิดของแต่ละวัน ช่องเปลี่ยนแปลงคือราคาทองคำแท่งขายออกเทียบกับราคาปิดของวันทำการก่อนหน้า
             </p>
           </section>
+
+          {reportPages.length > 0 && (
+            <nav aria-labelledby="month-reports-heading">
+              <h2
+                id="month-reports-heading"
+                className="text-xl font-bold text-gray-900 dark:text-gray-50"
+              >
+                รายงานราคาทองรายวัน เดือน{label}
+              </h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                ราคาทุกประกาศของแต่ละวัน พร้อมราคาเปิด ราคาปิด สูงสุดและต่ำสุด
+              </p>
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {reportPages.map((page) => (
+                  <li key={page.date}>
+                    <Link
+                      href={reportPagePath(page)}
+                      className="inline-block rounded-full border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:border-amber-500 hover:text-amber-600 dark:border-gray-700 dark:text-gray-300"
+                    >
+                      {page.day} {page.monthName} {page.buddhistYear}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          )}
         </>
       ) : (
         <p className="rounded-2xl border border-dashed border-gray-300 p-5 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">

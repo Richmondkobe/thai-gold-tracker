@@ -22,6 +22,7 @@ import { PROFIT_CALC_PATH } from "@/lib/site";
 import { GUIDE_PAGES, guidePagePath } from "@/lib/guide-pages";
 import { listMonthPages, monthPagePath } from "@/lib/month-pages";
 import { listYearPages, yearPagePath } from "@/lib/year-pages";
+import { getReportPageByDate, reportPagePath } from "@/lib/report-pages";
 import { IntradayTable } from "@/components/IntradayTable";
 import { PriceChart } from "@/components/PriceChart";
 import { FaqSection } from "@/components/FaqSection";
@@ -117,11 +118,18 @@ export default async function HomePage() {
 
   const chartRows = history.slice(-CHART_DAYS);
 
+  // Daily report link. A report exists for a day once it has a price row, so
+  // today's is linked as soon as today has one; before that (and on days with
+  // no announcement) the link goes to the most recent day that has a report.
+  const today = toBangkokDateString(new Date());
+  const lastReportDate = intraday.length > 0 ? today : history.at(-1)?.priceDate;
+  const reportPage = lastReportDate ? getReportPageByDate(lastReportDate) : null;
+  const reportIsToday = reportPage?.date === today;
+
   // Comparison box: the latest price against the daily close 1, 7 and 30
   // calendar days before today (Bangkok). When that exact day had no
   // announcement (a holiday), the nearest earlier close is used and its date
   // is shown, so the figure is never silently for a different day.
-  const today = toBangkokDateString(new Date());
   const comparisons: PriceComparisonItem[] = [
     { label: "เทียบกับเมื่อวาน", days: 1 },
     { label: "เทียบกับ 7 วันก่อน", days: 7 },
@@ -161,7 +169,19 @@ export default async function HomePage() {
             </ul>
           </nav>
 
-          <TodaySummary intraday={intraday} latest={current} />
+          <div>
+            <TodaySummary intraday={intraday} latest={current} />
+            {reportPage && (
+              <Link
+                href={reportPagePath(reportPage)}
+                className="mt-3 inline-block text-sm font-medium text-amber-600 hover:underline dark:text-amber-400"
+              >
+                {reportIsToday
+                  ? "อ่านรายงานราคาทองวันนี้ ทุกประกาศ →"
+                  : `อ่านรายงานราคาทองล่าสุด วันที่ ${reportPage.day} ${reportPage.monthName} ${reportPage.buddhistYear} →`}
+              </Link>
+            )}
+          </div>
 
           <PriceComparison currentBarSell={current.barSell} items={comparisons} />
 

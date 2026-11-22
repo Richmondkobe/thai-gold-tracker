@@ -10,6 +10,8 @@ import { GUIDE_PAGES, guidePagePath } from "@/lib/guide-pages";
 import { TRUST_PAGES } from "@/lib/trust-pages";
 import { isCurrentYear, listYearPages, yearPagePath } from "@/lib/year-pages";
 import { isCurrentMonth, listMonthPages, monthPagePath } from "@/lib/month-pages";
+import { getReportPageByDate, reportPagePath } from "@/lib/report-pages";
+import { toBangkokDateString } from "@/lib/bangkok";
 
 // Generated on EVERY request - deliberately not cached. With a cached (ISR)
 // sitemap, Vercel kept serving the copy built at deploy time for ten days
@@ -24,6 +26,7 @@ export const dynamic = "force-dynamic";
 // have changed today.
 //   - pages that follow the live price ........ time of the newest stored price
 //   - a finished month or year ................ time of its last price
+//   - a daily report .......................... time of that day's last price
 //   - articles and trust pages ................ their hand-maintained updatedAt
 // If the price history can't be read, the price-driven entries are emitted
 // with NO lastmod rather than a made-up one.
@@ -100,6 +103,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     };
   });
 
+  // One daily report per day that has a price row, from REPORT_START_DATE on
+  // (getReportPageByDate returns null for anything earlier). The rows are the
+  // daily closes already loaded above, so a new trading day is listed by
+  // itself and a day with no announcement never is. Newest first.
+  const today = toBangkokDateString(now);
+  const reportPages: MetadataRoute.Sitemap = [];
+  for (const row of [...(daily ?? [])].reverse()) {
+    const config = getReportPageByDate(row.priceDate);
+    if (!config) break; // rows are in date order: everything further back is older still
+    const inProgress = row.priceDate === today;
+    reportPages.push({
+      url: `${SITE_URL}${encodeURI(reportPagePath(config))}`,
+      lastModified: row.fetchedAt,
+      changeFrequency: inProgress ? "hourly" : "yearly",
+      priority: inProgress ? 0.7 : 0.4,
+    });
+  }
+
   return [
     { url: `${SITE_URL}/`, lastModified: latestPrice, changeFrequency: "hourly", priority: 1 },
     {
@@ -124,6 +145,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...guidePages,
     ...yearPages,
     ...monthPages,
+    ...reportPages,
     {
       url: `${SITE_URL}${encodeURI(PROFIT_CALC_PATH)}`,
       lastModified: latestPrice,

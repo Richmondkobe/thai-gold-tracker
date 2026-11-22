@@ -1,5 +1,23 @@
 import type { NextConfig } from "next";
 
+// Thai month names for the daily report short links below. Duplicated from
+// lib/thai-date.ts on purpose: this file is loaded by Next before the app's
+// path aliases exist.
+const THAI_MONTH_NAMES = [
+  "มกราคม",
+  "กุมภาพันธ์",
+  "มีนาคม",
+  "เมษายน",
+  "พฤษภาคม",
+  "มิถุนายน",
+  "กรกฎาคม",
+  "สิงหาคม",
+  "กันยายน",
+  "ตุลาคม",
+  "พฤศจิกายน",
+  "ธันวาคม",
+];
+
 const nextConfig: NextConfig = {
   // Public URLs for the per-weight and explainer pages are Thai
   // (/ราคาทอง/1-สลึง, /ความรู้/ทอง-1-บาท-กี่กรัม) for SEO, but this Next version
@@ -25,6 +43,11 @@ const nextConfig: NextConfig = {
       {
         source: `/${encodeURIComponent("ราคาทองเดือน")}/:monthSlug`,
         destination: "/gold-price-month/:monthSlug",
+      },
+      {
+        // Daily report pages, /รายงานราคาทอง/23-พฤศจิกายน-2569 (lib/report-pages.ts).
+        source: `/${encodeURIComponent("รายงานราคาทอง")}/:reportSlug`,
+        destination: "/gold-report/:reportSlug",
       },
       {
         source: `/${encodeURIComponent("คำนวณกำไรขาดทุนทอง")}`,
@@ -92,6 +115,22 @@ const nextConfig: NextConfig = {
         destination: "/ราคาทองเดือน/:monthSlug",
         permanent: true,
       },
+      {
+        source: "/gold-report/:reportSlug",
+        destination: "/รายงานราคาทอง/:reportSlug",
+        permanent: true,
+      },
+      // Short ASCII share links for the daily reports: /r/23-11-2569
+      // (day-month-Buddhist year, no leading zeros) -> the Thai report URL.
+      // They exist only so the link in the report's "share" text survives
+      // being pasted into LINE or a blog (reportShortPath in
+      // lib/report-pages.ts). One entry per month, because the destination
+      // needs the month's Thai name.
+      ...THAI_MONTH_NAMES.map((monthName, index) => ({
+        source: `/r/:day([1-9]|[12]\\d|3[01])-${index + 1}-:year(\\d{4})`,
+        destination: `/รายงานราคาทอง/:day-${monthName}-:year`,
+        permanent: true,
+      })),
       {
         source: "/gold-profit",
         destination: "/คำนวณกำไรขาดทุนทอง",
