@@ -90,7 +90,10 @@ export default async function HomePage() {
   // that exist - see lib/month-pages.ts.
   const asOf = history.length > 0 ? history[history.length - 1].fetchedAt : current?.fetchedAt;
   const currentMonth = asOf ? listMonthPages(asOf).at(-1) : undefined;
-  const currentYear = asOf ? listYearPages(asOf).at(-1) : undefined;
+  // Every year page, newest first. The homepage is the page search engines
+  // crawl most, so linking all of them from here (not only from /history)
+  // is what gets the older years found and crawled.
+  const yearPages = asOf ? listYearPages(asOf).reverse() : [];
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-4 py-6">
@@ -172,15 +175,28 @@ export default async function HomePage() {
               </Link>
             </li>
           )}
-          {currentYear && (
-            <li>
-              <Link href={yearPagePath(currentYear.buddhistYear)} className={TEXT_LINK_CLASS}>
-                ราคาทองปี {currentYear.buddhistYear} →
-              </Link>
-            </li>
-          )}
         </ul>
       </section>
+
+      {yearPages.length > 0 && (
+        <section aria-labelledby="years-heading">
+          <h2 id="years-heading" className="text-xl font-bold text-gray-900 dark:text-gray-50">
+            ราคาทองย้อนหลังรายปี
+          </h2>
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {yearPages.map((p) => (
+              <li key={p.buddhistYear}>
+                <Link
+                  href={yearPagePath(p.buddhistYear)}
+                  className="inline-block rounded-full border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:border-amber-500 hover:text-amber-600 dark:border-gray-700 dark:text-gray-300"
+                >
+                  ราคาทองปี {p.buddhistYear}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section aria-labelledby="guides-heading">
         <h2 id="guides-heading" className="text-xl font-bold text-gray-900 dark:text-gray-50">

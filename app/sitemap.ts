@@ -11,10 +11,13 @@ import { TRUST_PAGES } from "@/lib/trust-pages";
 import { isCurrentYear, listYearPages, yearPagePath } from "@/lib/year-pages";
 import { isCurrentMonth, listMonthPages, monthPagePath } from "@/lib/month-pages";
 
-// Regenerated hourly rather than only at deploy time, so a new month's or
-// year's page is listed once it has data, and the lastmod of the pages that
-// follow the price stays close to the latest announcement.
-export const revalidate = 3600;
+// Generated on EVERY request - deliberately not cached. With a cached (ISR)
+// sitemap, Vercel kept serving the copy built at deploy time for ten days
+// (2026-11-13 to 11-22) without ever regenerating it: every "real" lastmod
+// below was frozen, and a new month's page would not have been listed. A
+// sitemap is fetched a handful of times a day by crawlers, so a few small
+// queries per request cost nothing, and this way it cannot go stale.
+export const dynamic = "force-dynamic";
 
 // <lastmod> is REAL here, never "now": search engines stop trusting the field
 // (and Bing in particular schedules recrawls from it) when every URL claims to

@@ -181,8 +181,11 @@ Tells search engines about new and changed pages (protocol: indexnow.org/documen
 
 ## Sitemap dates, and the dates on articles
 
-`app/sitemap.ts` emits a REAL `<lastmod>` for every URL, never "now" (regenerated
-hourly): price-driven pages use the time of the newest stored price, a finished month
+`app/sitemap.ts` emits a REAL `<lastmod>` for every URL, never "now". It is
+`force-dynamic` (built on every request) on purpose: as a cached ISR route Vercel
+served the deploy-time copy for ten days without regenerating it, freezing every
+date - do not make it static again without proving regeneration on the live site.
+Price-driven pages use the time of the newest stored price, a finished month
 or year uses the time of its last price, and articles and trust pages use the
 hand-maintained `updatedAt` in `lib/guide-pages.ts` / `lib/trust-pages.ts`. **Bump
 `updatedAt` by hand whenever you edit an article or trust page** - for articles it

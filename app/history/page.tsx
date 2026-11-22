@@ -9,6 +9,7 @@ import { HistoryExplorer } from "@/components/HistoryExplorer";
 import { HistorySummary } from "@/components/HistorySummary";
 import { listYearPages, yearPagePath } from "@/lib/year-pages";
 import { listRecentMonthPages, monthPagePath } from "@/lib/month-pages";
+import { WEIGHT_PAGES, weightPagePath } from "@/lib/weight-pages";
 
 export const revalidate = 3600;
 
@@ -113,6 +114,24 @@ export default async function HistoryPage() {
                 className="inline-block rounded-full border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:border-amber-500 hover:text-amber-600 dark:border-gray-700 dark:text-gray-300"
               >
                 ราคาทองปี {p.buddhistYear}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">
+          เช็คราคาทองวันนี้ตามน้ำหนัก
+        </h2>
+        <ul className="mt-3 flex flex-wrap gap-2">
+          {WEIGHT_PAGES.map((p) => (
+            <li key={p.slug}>
+              <Link
+                href={weightPagePath(p)}
+                className="inline-block rounded-full border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:border-amber-500 hover:text-amber-600 dark:border-gray-700 dark:text-gray-300"
+              >
+                ราคา{p.nameTh}
               </Link>
             </li>
           ))}
