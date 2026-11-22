@@ -192,6 +192,28 @@ hand-maintained `updatedAt` in `lib/guide-pages.ts` / `lib/trust-pages.ts`. **Bu
 also drives the visible "อัปเดตล่าสุด" line and the Article JSON-LD `dateModified`.
 Keep meta descriptions at or under 160 characters.
 
+## Homepage data blocks (purity table, comparison, today's summary)
+
+All server-rendered from data already loaded for the page (no extra queries).
+
+- **Purity table** (`components/PurityPriceTable.tsx`, `lib/purity.ts`): only the 96.5%
+  row is an announced price. Every other row is an ESTIMATE of gold-content value,
+  pro rata from the 96.5% bar price (`price x percent / 96.5`; per gram = `/ 15.244`),
+  and the page says so. GTA's feed also carries its own official tax-base buy prices
+  for 99.99/90/80/50/40% ornament gold (`oM9999_BuyPrice`, `oM90_BuyPrice`, ...), which
+  are NOT pro rata (50% is priced at 0.45x, 40% at 0.35x of the 96.5% figure) and are
+  not stored. Storing and showing them would be more authoritative than the estimates.
+- **Comparison box** (`components/PriceComparison.tsx`): latest bar sell vs the daily
+  close 1, 7 and 30 calendar days before today, falling back to the nearest earlier
+  close and showing its date. Needs the 45 daily rows the homepage loads (the chart
+  uses the last 30).
+- **Today's summary** (`components/TodaySummary.tsx`): counts the price rows stored
+  today. This is NOT GTA's official "ประกาศครั้งที่": the feed's `seq` field is not
+  stored, and the 2-minute poll of `/Latest` misses announcements that come closer
+  together (2026-11-20: GTA made 90, 76 were stored). Capturing every announcement
+  (e.g. from `/api/GoldPricesDaily/pricechanges` for today) plus `seq` would fix the
+  count, the intraday table and intraday highs/lows together.
+
 ## Explicitly out of scope (v2)
 
 LINE integration, user accounts, fuel/currency price tracking. Do not implement these unless asked.

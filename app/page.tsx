@@ -10,7 +10,11 @@ import {
   type GoldPriceRow,
   type LatestGoldPriceRow,
 } from "@/lib/gold-price-queries";
+import { subtractDaysFromDateString, toBangkokDateString } from "@/lib/bangkok";
 import { PriceCard } from "@/components/PriceCard";
+import { TodaySummary } from "@/components/TodaySummary";
+import { PriceComparison, type PriceComparisonItem } from "@/components/PriceComparison";
+import { PurityPriceTable } from "@/components/PurityPriceTable";
 import { GoldCalculator } from "@/components/GoldCalculator";
 import { WEIGHT_PAGES, weightPagePath } from "@/lib/weight-pages";
 import { PROFIT_CALC_PATH } from "@/lib/site";
@@ -31,7 +35,7 @@ import { homeFaqItems } from "@/lib/faq-content";
 export const revalidate = 60;
 
 const DESCRIPTION =
-  "เช็กราคาทองวันนี้ล่าสุด ทองคำแท่งและทองรูปพรรณ 96.5% ตามประกาศสมาคมค้าทองคำ อัปเดตทุกครั้งที่ราคาเปลี่ยน พร้อมราคาทอง 1 บาท 1 สลึง กราฟย้อนหลัง และแจ้งเตือนราคาฟรี";
+  "เช็กราคาทองวันนี้ล่าสุด ราคาทองคำแท่งและทองรูปพรรณ 96.5% พร้อมราคารับซื้อ-ขายออก กราฟราคาทองย้อนหลัง คำนวณราคาทอง 1 สลึง 2 สลึง และ 1 บาท";
 
 // The title carries today's date in Bangkok time (short Thai month, Buddhist
 // year), e.g. "ราคาทองวันนี้ 13 พ.ย. 2569 ล่าสุด ...". It is worked out each time
@@ -55,6 +59,19 @@ export function generateMetadata(): Metadata {
 }
 
 const TEXT_LINK_CLASS = "text-amber-600 hover:underline dark:text-amber-400";
+const CHIP_CLASS =
+  "inline-block rounded-full border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:border-amber-500 hover:text-amber-600 dark:border-gray-700 dark:text-gray-300";
+
+const HISTORY_DAYS = 45;
+const CHART_DAYS = 30;
+
+/** The last daily close on or before `dateStr` ("YYYY-MM-DD"), from rows sorted oldest-first. */
+function closeOnOrBefore(rows: DailyGoldPriceRow[], dateStr: string): DailyGoldPriceRow | null {
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if (rows[i].priceDate <= dateStr) return rows[i];
+  }
+  return null;
+}
 
 interface HomeData {
   latest: LatestGoldPriceRow[];
@@ -69,7 +86,9 @@ async function loadHomeData(): Promise<HomeData> {
       getLatestPrices(2),
       getTodayIntraday(),
       getYesterdayClose(),
-      getDailyHistory(30),
+      // 45 daily closes: the chart shows the last 30, and the comparison box
+      // needs one from at least 30 calendar days back.
+      getDailyHistory(HISTORY_DAYS),
     ]);
     return { latest, intraday, yesterday, history };
   } catch (err) {
@@ -95,6 +114,22 @@ export default async function HomePage() {
   // is what gets the older years found and crawled.
   const yearPages = asOf ? listYearPages(asOf).reverse() : [];
 
+  const chartRows = history.slice(-CHART_DAYS);
+
+  // Comparison box: the latest price against the daily close 1, 7 and 30
+  // calendar days before today (Bangkok). When that exact day had no
+  // announcement (a holiday), the nearest earlier close is used and its date
+  // is shown, so the figure is never silently for a different day.
+  const today = toBangkokDateString(new Date());
+  const comparisons: PriceComparisonItem[] = [
+    { label: "เทียบกับเมื่อวาน", days: 1 },
+    { label: "เทียบกับ 7 วันก่อน", days: 7 },
+    { label: "เทียบกับ 30 วันก่อน", days: 30 },
+  ].map(({ label, days }) => ({
+    label,
+    reference: closeOnOrBefore(history, subtractDaysFromDateString(today, days)),
+  }));
+
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-4 py-6">
       <header>
@@ -109,27 +144,37 @@ export default async function HomePage() {
       {current ? (
         <>
           <PriceCard latest={current} previous={previous ?? null} yesterday={yesterday} />
-          <GoldCalculator latest={current} />
-          <nav aria-label="ราคาทองรายน้ำหนัก" className="-mt-4">
-            <ul className="flex flex-wrap gap-2">
+
+          <nav aria-labelledby="weights-heading" className="-mt-4">
+            <h2 id="weights-heading" className="text-sm font-medium text-gray-500 dark:text-gray-400">
+              ดูราคาทองวันนี้ตามน้ำหนัก
+            </h2>
+            <ul className="mt-2 flex flex-wrap gap-2">
               {WEIGHT_PAGES.map((p) => (
                 <li key={p.slug}>
-                  <Link
-                    href={weightPagePath(p)}
-                    className="inline-block rounded-full border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:border-amber-500 hover:text-amber-600 dark:border-gray-700 dark:text-gray-300"
-                  >
-                    ราคา{p.nameTh}
+                  <Link href={weightPagePath(p)} className={CHIP_CLASS}>
+                    ราคาทอง {p.shortName}
                   </Link>
                 </li>
               ))}
             </ul>
+          </nav>
+
+          <TodaySummary intraday={intraday} latest={current} />
+
+          <PriceComparison currentBarSell={current.barSell} items={comparisons} />
+
+          <div>
+            <GoldCalculator latest={current} />
             <Link
               href={PROFIT_CALC_PATH}
-              className="mt-2 inline-block text-sm font-medium text-amber-600 hover:underline dark:text-amber-400"
+              className="mt-3 inline-block text-sm font-medium text-amber-600 hover:underline dark:text-amber-400"
             >
               คำนวณกำไรขาดทุนจากทองที่ถืออยู่ →
             </Link>
-          </nav>
+          </div>
+
+          <PurityPriceTable latest={current} />
         </>
       ) : (
         <p className="rounded-2xl border border-dashed border-gray-300 p-5 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
@@ -155,7 +200,7 @@ export default async function HomePage() {
           กราฟราคาทองย้อนหลัง 30 วัน
         </h2>
         <div className="mt-3">
-          <PriceChart rows={history} title="ราคาทองคำแท่งขายออกย้อนหลัง 30 วัน" />
+          <PriceChart rows={chartRows} title="ราคาทองคำแท่งขายออกย้อนหลัง 30 วัน" />
         </div>
         <ul className="mt-2 flex flex-col gap-1 text-sm font-medium">
           <li>
@@ -186,10 +231,7 @@ export default async function HomePage() {
           <ul className="mt-3 flex flex-wrap gap-2">
             {yearPages.map((p) => (
               <li key={p.buddhistYear}>
-                <Link
-                  href={yearPagePath(p.buddhistYear)}
-                  className="inline-block rounded-full border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:border-amber-500 hover:text-amber-600 dark:border-gray-700 dark:text-gray-300"
-                >
+                <Link href={yearPagePath(p.buddhistYear)} className={CHIP_CLASS}>
                   ราคาทองปี {p.buddhistYear}
                 </Link>
               </li>
