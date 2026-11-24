@@ -275,6 +275,7 @@ function PrivacyContent() {
           <li>Supabase: ฐานข้อมูล (เซิร์ฟเวอร์ในประเทศสิงคโปร์)</li>
           <li>Vercel: โฮสติ้งเว็บไซต์</li>
           <li>Resend: ส่งอีเมลแจ้งเตือน</li>
+          <li>GitHub: เก็บสำเนาสำรองฐานข้อมูลในที่เก็บส่วนตัว</li>
           <li>
             บริการแจ้งเตือนของผู้ผลิตเบราว์เซอร์ของคุณ (Google, Mozilla, Apple
             หรือ Microsoft): ส่งการแจ้งเตือนไปยังเครื่องของคุณ
@@ -301,6 +302,13 @@ function PrivacyContent() {
             จนกว่าคุณจะปิดการแจ้งเตือน
             หรือจนกว่าบริการแจ้งเตือนของเบราว์เซอร์แจ้งว่าใช้ไม่ได้แล้ว
             ซึ่งระบบจะลบให้อัตโนมัติ
+          </li>
+          <li>
+            <span className={strong}>สำเนาสำรองข้อมูล:</span>{" "}
+            เราสำรองฐานข้อมูลทุกวันเพื่อป้องกันข้อมูลสูญหาย
+            สำเนาสำรองแต่ละชุดเก็บไว้เป็นส่วนตัวและถูกลบอัตโนมัติเมื่อครบ 30 วัน
+            ข้อมูลที่คุณยกเลิกหรือขอให้ลบแล้วจึงอาจยังอยู่ในสำเนาสำรองได้อีกไม่เกิน
+            30 วัน
           </li>
         </ul>
 
@@ -394,6 +402,7 @@ function PrivacyContent() {
           <li>Supabase: database (servers in Singapore)</li>
           <li>Vercel: website hosting</li>
           <li>Resend: sending alert emails</li>
+          <li>GitHub: stores the database backups in a private repository</li>
           <li>
             Your browser maker&rsquo;s notification service (Google, Mozilla, Apple or
             Microsoft): delivers notifications to your device. The notification content
@@ -417,6 +426,12 @@ function PrivacyContent() {
             <span className={strong}>Browser notifications:</span> until you turn them
             off, or until your browser&rsquo;s notification service reports that the
             subscription no longer works, when it is deleted automatically.
+          </li>
+          <li>
+            <span className={strong}>Backups:</span> we back up the database every day
+            to protect against data loss. Each backup copy is kept privately and
+            deleted automatically after 30 days, so data you have unsubscribed or
+            asked us to delete can remain in backup copies for up to 30 days.
           </li>
         </ul>
 

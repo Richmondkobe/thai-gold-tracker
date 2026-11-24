@@ -246,12 +246,35 @@ One trust page (`privacy` in `lib/trust-pages.ts`, text in
 `app/site-info/[infoSlug]/page.tsx`), Thai first and then the same text in English.
 Linked from the footer and from both alert sign-up cards. It lists exactly what the
 site stores today (`price_alerts`, `push_subscriptions`, one `localStorage` timestamp),
-the service providers (Supabase, Vercel, Resend, the browser push services) and how
+the service providers (Supabase, Vercel, Resend, GitHub for backups, the browser
+push services), the 30-day life of a backup copy, and how
 to unsubscribe or ask for deletion (`CONTACT_EMAIL`). It also says the site has no
 tracking or advertising cookies and no third-party analytics. **Any change that makes
 the site collect, keep or share something else (analytics, ads, a new form, a new
 provider, backups that hold personal data) must change this page in the same commit
 and bump its `updatedAt`.**
+
+## Database backups
+
+The Supabase free plan keeps no backups, so a separate **private** GitHub repository,
+`Richmondkobe/thai-gold-tracker-backups`, makes one every night (about 03:30 Bangkok,
+GitHub Actions). Nothing about it lives in this public repository.
+
+- `scripts/dump.sh` there runs `pg_dump --schema=public` (all five tables with data,
+  views, RLS, grants) through the Session pooler and stores the file as a private
+  workflow artifact for **30 days**. Never commit a dump or lengthen that period
+  without changing the privacy notice: the dump holds subscribers' email addresses.
+- `scripts/restore-test.sh` then loads the dump into an empty Postgres container and
+  compares every table's row count and the newest `fetched_at` with the live
+  database. A run is green only if that passes; a failed run emails the owner.
+- Its only secret is `SUPABASE_DB_URL` (the database password inside a connection
+  string). The owner sets it; never ask for it or print it. If the database password
+  is reset, that secret must be updated the same day.
+- Not in the backup: function secrets and env vars (VAPID keys, `CRON_SECRET`, Resend
+  key - only in Supabase, Vercel and the owner's `.env.local`) and the `pg_cron` jobs.
+  The repo's README has the restore steps.
+- The schedule file (`.github/workflows/backup.yml`) can only be changed by the owner
+  in the GitHub web UI: the `gh` login on this Mac has no `workflow` scope.
 
 ## Homepage data blocks (purity table, comparison, today's summary)
 
