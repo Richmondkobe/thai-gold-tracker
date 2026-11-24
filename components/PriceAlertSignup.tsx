@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import type { FormEvent } from "react";
+import Link from "next/link";
+import { PRIVACY_PAGE_PATH } from "@/lib/trust-pages";
 
 type AlertType = "every_change" | "target";
 type Direction = "above" | "below";
@@ -176,6 +178,16 @@ export function PriceAlertSignup() {
         >
           {status === "submitting" ? "กำลังบันทึก..." : "สมัครรับการแจ้งเตือน"}
         </button>
+
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          เราใช้อีเมลของคุณเพื่อส่งการแจ้งเตือนราคาทองเท่านั้น ดู{" "}
+          <Link
+            href={PRIVACY_PAGE_PATH}
+            className="whitespace-nowrap underline hover:text-amber-600 dark:hover:text-amber-400"
+          >
+            นโยบายความเป็นส่วนตัว
+          </Link>
+        </p>
       </form>
     </section>
   );

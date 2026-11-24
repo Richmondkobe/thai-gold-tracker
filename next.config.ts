@@ -76,6 +76,10 @@ const nextConfig: NextConfig = {
         destination: "/site-info/terms",
       },
       {
+        source: `/${encodeURIComponent("นโยบายความเป็นส่วนตัว")}`,
+        destination: "/site-info/privacy",
+      },
+      {
         // IndexNow key file, /<key>.txt at the site root. The route only
         // answers when <key> is the configured INDEXNOW_KEY; any other root
         // .txt name gets its 404. Real files and routes (robots.txt) are
@@ -179,6 +183,17 @@ const nextConfig: NextConfig = {
       {
         source: "/site-info/terms",
         destination: "/ข้อกำหนด",
+        permanent: true,
+      },
+      {
+        source: "/site-info/privacy",
+        destination: "/นโยบายความเป็นส่วนตัว",
+        permanent: true,
+      },
+      {
+        // Short ASCII alias for the privacy notice, for emails and letters.
+        source: "/privacy",
+        destination: "/นโยบายความเป็นส่วนตัว",
         permanent: true,
       },
     ];

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { PRIVACY_PAGE_PATH } from "@/lib/trust-pages";
 
 // One-tap browser push for every price change - no email needed.
 // The subscription lives in the browser; this component only mirrors it to
@@ -269,6 +271,18 @@ export function PushNotificationToggle() {
       )}
 
       {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      {/* Shown in every state: the card is where the subscription is made,
+          kept and removed. */}
+      <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+        การแจ้งเตือนนี้ไม่ใช้อีเมลหรือชื่อของคุณ ดู{" "}
+        <Link
+          href={PRIVACY_PAGE_PATH}
+          className="whitespace-nowrap underline hover:text-amber-600 dark:hover:text-amber-400"
+        >
+          นโยบายความเป็นส่วนตัว
+        </Link>
+      </p>
     </section>
   );
 }

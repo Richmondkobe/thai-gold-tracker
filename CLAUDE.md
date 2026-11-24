@@ -240,6 +240,19 @@ hand-maintained `updatedAt` in `lib/guide-pages.ts` / `lib/trust-pages.ts`. **Bu
 also drives the visible "อัปเดตล่าสุด" line and the Article JSON-LD `dateModified`.
 Keep meta descriptions at or under 160 characters.
 
+## Privacy notice (`/นโยบายความเป็นส่วนตัว`, alias `/privacy`)
+
+One trust page (`privacy` in `lib/trust-pages.ts`, text in
+`app/site-info/[infoSlug]/page.tsx`), Thai first and then the same text in English.
+Linked from the footer and from both alert sign-up cards. It lists exactly what the
+site stores today (`price_alerts`, `push_subscriptions`, one `localStorage` timestamp),
+the service providers (Supabase, Vercel, Resend, the browser push services) and how
+to unsubscribe or ask for deletion (`CONTACT_EMAIL`). It also says the site has no
+tracking or advertising cookies and no third-party analytics. **Any change that makes
+the site collect, keep or share something else (analytics, ads, a new form, a new
+provider, backups that hold personal data) must change this page in the same commit
+and bump its `updatedAt`.**
+
 ## Homepage data blocks (purity table, comparison, today's summary)
 
 All server-rendered from data already loaded for the page (no extra queries).
