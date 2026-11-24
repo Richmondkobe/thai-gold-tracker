@@ -352,6 +352,40 @@ in `lib/widget.ts` (sizes, themes, URLs, the embed code).
   from the site footer and the homepage, in the sitemap with the hand-maintained
   `WIDGET_PAGE_UPDATED_AT` (bump it when the page's text changes).
 
+## Private /pro area (backtest + paper trading)
+
+The owner's private trading test area. It is the one exception to "no login" above and
+to the standing rules for public pages: it is English-only, uses Gregorian dates, has no
+JSON-LD/OpenGraph, and is rendered on demand (never cached). No real money or real
+orders are involved anywhere.
+
+- **Login.** One shared password in the `PRO_PASSWORD` env var (Vercel Production +
+  local `.env.local`, where the value is a local-only test one). `lib/pro/auth.ts`: the
+  cookie (`pro_session`, HttpOnly, path `/pro`, 30 days) holds an HMAC keyed by the
+  password, so changing the password signs everyone out. Under 8 characters or unset =
+  the area stays locked. **Every /pro page and every /pro Server Action must call
+  `requireProSession()` itself** - the layout does not protect them. A wrong password
+  costs 1.5s; there is no other rate limit, so the password should be long.
+- **Hidden from search.** `app/pro/layout.tsx` adds a noindex meta tag and
+  `next.config.ts` an `X-Robots-Tag` header for `/pro/:path*`. It is NOT in
+  `robots.txt` on purpose (that would publish the path and hide the noindex from
+  crawlers), not in the sitemap (so never sent to IndexNow), and must never be linked
+  from a public page.
+- **Backtest** (`/pro/backtest`, `lib/pro/backtest.ts`, pure and testable). Four
+  strategies over every `daily_gold_prices` row since 2016, ฿100,000 each: buy and
+  hold, 20/50-day average crossover, 20-day breakout, buy the dip. Every buy pays
+  `bar_sell`, every sell gets `bar_buy`. Signals use the day's last price and fill on
+  the NEXT trading day (no lookahead). The first 50 days only warm up the averages, so
+  all four accounts open on the same day (2016-03-01). Balance = cash + gold at
+  `bar_buy`. Computed on each request; nothing is stored.
+- **Paper trading** (`/pro/paper`). Table `paper_trades` (migration 0012): RLS on, no
+  policies, service_role only, read/written only through `lib/pro/paper-store.ts`. The
+  account is not stored - `lib/pro/paper.ts` replays the trades from ฿100,000
+  (average-cost method). The trade price is always re-read on the server from the
+  latest `gold_prices` row; if it is newer than the one the form showed, nothing is
+  traded. `seq` is unique and written as "last + 1", so a double click cannot spend the
+  same cash twice.
+
 ## Explicitly out of scope (v2)
 
 LINE integration, user accounts, fuel/currency price tracking. Do not implement these unless asked.

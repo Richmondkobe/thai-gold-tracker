@@ -88,6 +88,14 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // The private /pro area must never be indexed. Its pages also carry a
+        // noindex <meta> tag (app/pro/layout.tsx); this header covers every
+        // response under /pro, redirects included. /pro is deliberately not in
+        // robots.txt - that would publish the path.
+        source: "/pro/:path*",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
+      },
+      {
         // The push service worker (public/sw.js). Never cached, so a fix to
         // it reaches every subscribed browser on its next update check.
         source: "/sw.js",
